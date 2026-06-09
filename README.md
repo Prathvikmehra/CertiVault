@@ -12,6 +12,7 @@ Upload once. Find instantly. Verify confidently. Share safely. Track everything.
 [![Security First](https://img.shields.io/badge/security-first-DC2626?style=for-the-badge)](#security-by-design)
 [![Cloud Native](https://img.shields.io/badge/cloud-native-0F766E?style=for-the-badge)](#cloud-architecture)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-7C3AED?style=for-the-badge)](#contributing)
+[![MIT License](https://img.shields.io/badge/license-MIT-F59E0B?style=for-the-badge)](LICENSE)
 
 <br />
 
@@ -43,7 +44,8 @@ Upload once. Find instantly. Verify confidently. Share safely. Track everything.
 [Architecture](#cloud-architecture) |
 [Roadmap](#delivery-roadmap) |
 [API](#api-blueprint) |
-[Contributing](#contributing)
+[Contributing](#contributing) |
+[License](#license)
 
 </div>
 
@@ -541,7 +543,22 @@ Security issues must be reported privately according to [SECURITY.md](SECURITY.m
 
 ## License
 
-Distributed under the [MIT License](LICENSE).
+<p align="center">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/Open%20Source-MIT%20License-f59e0b?style=for-the-badge"></a>
+</p>
+
+This project is proudly released under the **MIT License**.
+
+You may use, modify, distribute, and build upon the project while preserving
+the copyright and license notice. See the [LICENSE](LICENSE) file for the full
+terms.
+
+| Permission | Included |
+| --- | --- |
+| Commercial use | Yes |
+| Modification | Yes |
+| Distribution | Yes |
+| Private use | Yes |
 
 ---
 
