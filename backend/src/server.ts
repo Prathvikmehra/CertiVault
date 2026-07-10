@@ -1,3 +1,5 @@
+import dns from "node:dns";
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 import { createApp } from "./app.js";
 import { getEnv } from "./config/env.js";
 import { connectDB, disconnectDB } from "./config/db.js";
@@ -13,14 +15,14 @@ let server: http.Server;
 const start = async () => {
   try {
     // Connect to database
-    await connectDB(env.mongodbUri);
+    await connectDB(env.MONGODB_URI);
 
     // Seed database if necessary
     await seedDatabase();
 
     // Start listening
-    server = app.listen(env.port, () => {
-      console.log(`CertiVault API listening on port ${env.port}`);
+    server = app.listen(env.PORT, () => {
+      console.log(`CertiVault API listening on port ${env.PORT}`);
     });
 
     const shutdown = createShutdownHandler(server);

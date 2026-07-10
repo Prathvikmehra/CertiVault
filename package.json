@@ -12,5 +12,9 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.0"
+  },
+  "dependencies": {
+    "cloudinary": "^2.10.0",
+    "mongoose": "^9.7.4"
   }
 }

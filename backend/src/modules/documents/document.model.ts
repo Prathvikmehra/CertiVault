@@ -1,29 +1,61 @@
-import mongoose, { Schema, Document as MongooseDocument } from "mongoose";
+/**
+ * Document model - MongoDB schema for document metadata
+ */
 
-export interface IDocument {
+import mongoose, { Document, Schema } from "mongoose";
+
+export interface IDocument extends Document {
   id: string;
   name: string;
   type: string;
   size: number;
   status: "verified" | "pending";
   owner: string;
-  createdAt: string;
+  createdAt: Date;
   checksum: string;
-  verifiedAt?: string;
+  verifiedAt?: Date;
 }
 
-export interface IDocumentDocument extends IDocument, MongooseDocument {}
+const documentSchema = new Schema<IDocument>(
+  {
+    id: {
+      type: String,
+      required: [true, "ID is required"],
+      unique: true,
+      index: true,
+    },
+    name: {
+      type: String,
+      required: [true, "Name is required"],
+    },
+    type: {
+      type: String,
+      required: [true, "Type is required"],
+    },
+    size: {
+      type: Number,
+      required: [true, "Size is required"],
+    },
+    status: {
+      type: String,
+      enum: ["pending", "verified"],
+      default: "pending",
+    },
+    owner: {
+      type: String,
+      required: [true, "Owner is required"],
+    },
+    checksum: {
+      type: String,
+      required: [true, "Checksum is required"],
+    },
+    verifiedAt: {
+      type: Date,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
 
-const DocumentSchema = new Schema<IDocumentDocument>({
-  id: { type: String, required: true, unique: true },
-  name: { type: String, required: true },
-  type: { type: String, required: true },
-  size: { type: Number, required: true },
-  status: { type: String, enum: ["verified", "pending"], default: "pending" },
-  owner: { type: String, required: true },
-  createdAt: { type: String, required: true },
-  checksum: { type: String, required: true },
-  verifiedAt: { type: String },
-});
-
-export const DocumentModel = mongoose.model<IDocumentDocument>("Document", DocumentSchema);
+export const DocumentModel = mongoose.model<IDocument>("Document", documentSchema);

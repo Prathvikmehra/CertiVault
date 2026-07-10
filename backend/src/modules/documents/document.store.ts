@@ -1,8 +1,9 @@
 import { DocumentModel, IDocument } from "./document.model.js";
 
+
 const now = Date.now();
 
-const initialDocuments: IDocument[] = [
+const initialDocuments: any[] = [
   {
     id: "demo-credential",
     name: "Cloud Security Certificate.pdf",
@@ -10,7 +11,7 @@ const initialDocuments: IDocument[] = [
     size: 2457600,
     status: "verified",
     owner: "Krishna Kumar",
-    createdAt: new Date(now - 2 * 86400000).toISOString(),
+    createdAt: new Date(now - 2 * 86400000),
     checksum: "7b9f4c2e8a10d34f",
   },
   {
@@ -20,7 +21,7 @@ const initialDocuments: IDocument[] = [
     size: 1153433,
     status: "pending",
     owner: "Krishna Kumar",
-    createdAt: new Date(now - 5 * 86400000).toISOString(),
+    createdAt: new Date(now - 5 * 86400000),
     checksum: "a41d9b6604cc82e1",
   },
   {
@@ -30,7 +31,7 @@ const initialDocuments: IDocument[] = [
     size: 845414,
     status: "verified",
     owner: "Krishna Kumar",
-    createdAt: new Date(now - 8 * 86400000).toISOString(),
+    createdAt: new Date(now - 8 * 86400000),
     checksum: "18e613fea60aeb4d",
   },
 ];
@@ -52,7 +53,7 @@ export const documentStore = {
   all: async (): Promise<IDocument[]> => {
     return (await DocumentModel.find().lean()) as unknown as IDocument[];
   },
-  add: async (document: IDocument): Promise<IDocument> => {
+  add: async (document: any): Promise<IDocument> => {
     const created = await DocumentModel.create(document);
     return created.toObject() as unknown as IDocument;
   },

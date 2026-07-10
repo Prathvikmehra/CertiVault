@@ -36,14 +36,14 @@ export const uploadDocument = async (
       return next(new ApiError(400, "FILE_REQUIRED", "Select a file to upload"));
     }
 
-    const document: IDocument = {
+    const document: any = {
       id: randomUUID(),
       name: req.file.originalname,
       type: String(req.body.type || "Other"),
       size: req.file.size,
       status: "pending",
       owner: "Krishna Kumar",
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(),
       checksum: createHash("sha256").update(req.file.buffer).digest("hex").slice(0, 16),
     };
 
@@ -68,8 +68,8 @@ export const verifyDocument = async (
 
     const updated = await documentStore.update(id, {
       status: "verified",
-      verifiedAt: new Date().toISOString(),
-    });
+      verifiedAt: new Date(),
+    } as any);
 
     res.json({ data: updated });
   } catch (error) {
