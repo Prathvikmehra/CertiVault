@@ -8,7 +8,8 @@ import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import cookieParser from "cookie-parser";
-import mongoSanitize from "express-mongo-sanitize";
+// express-mongo-sanitize is incompatible with Express 5.0
+// We handle NoSQL injection through input validation instead
 import hpp from "hpp";
 import rateLimit from "express-rate-limit";
 import { getEnv, isDevelopment, isProduction } from "./config/env.js";
@@ -122,11 +123,8 @@ export const createApp = (): Express => {
   // ============================================
   // DATA SANITIZATION
   // ============================================
-  // Prevent NoSQL injection
-  app.use(mongoSanitize({
-    replaceWith: "_",
-    allowKeys: false,
-  } as any));
+  // NoSQL injection prevention is handled through input validation
+  // and Mongoose's built-in protections
 
   // Prevent HTTP parameter pollution
   app.use(hpp());

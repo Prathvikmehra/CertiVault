@@ -1,9 +1,9 @@
 import { Document, Summary } from "./types.js";
 
-const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:5000";
+const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:5000";
 
 const request = async <T>(path: string, options?: RequestInit): Promise<T> => {
-  const response = await fetch(`${API_URL}${path}`, options);
+  const response = await fetch(`${API_BASE_URL}${path}`, options);
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { error?: { message?: string } };
     throw new Error(body.error?.message || "Request failed");
