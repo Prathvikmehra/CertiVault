@@ -122,3 +122,118 @@ export interface VerificationStatistics {
   tampered: number;
   revoked: number;
 }
+
+// Shared Vault Types
+export type Permission = "viewer" | "editor" | "admin";
+
+export type NotificationType =
+  | "upload_completed"
+  | "verification_completed"
+  | "verification_rejected"
+  | "share_accepted"
+  | "share_revoked"
+  | "new_member"
+  | "storage_warning"
+  | "document_shared"
+  | "document_verified";
+
+export interface Notification {
+  _id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  data?: {
+    documentId?: string;
+    documentTitle?: string;
+    documentFileName?: string;
+    shareId?: string;
+    memberId?: string;
+    memberName?: string;
+    memberEmail?: string;
+    verificationId?: string;
+    storageUsed?: number;
+    storageLimit?: number;
+    actionUrl?: string;
+  };
+  isRead: boolean;
+  readAt?: string;
+  expiresAt?: string;
+  createdAt: string;
+}
+
+export interface SharedDocument {
+  _id: string;
+  documentId: string;
+  documentTitle: string;
+  documentFileName: string;
+  owner: string;
+  ownerName: string;
+  ownerEmail: string;
+  shareToken: string;
+  shareUrl: string;
+  expiresAt?: string;
+  maxAccessCount?: number;
+  currentAccessCount: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SharedMember {
+  _id: string;
+  documentId: string;
+  sharedDocumentId?: string;
+  memberEmail: string;
+  memberName?: string;
+  memberUserId?: string;
+  permission: Permission;
+  invitedBy: string;
+  invitedByName: string;
+  invitedByEmail: string;
+  inviteToken?: string;
+  inviteStatus: "pending" | "accepted" | "declined" | "revoked";
+  acceptedAt?: string;
+  revokedAt?: string;
+  revokedBy?: string;
+  expiresAt?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AccessAction = "view" | "download" | "share" | "revoke" | "invite" | "accept" | "decline";
+
+export interface AccessLog {
+  _id: string;
+  documentId: string;
+  documentTitle: string;
+  sharedDocumentId?: string;
+  sharedMemberId?: string;
+  shareToken?: string;
+  userId?: string;
+  userEmail?: string;
+  userName?: string;
+  action: AccessAction;
+  ipAddress?: string;
+  userAgent?: string;
+  location?: {
+    country?: string;
+    city?: string;
+    region?: string;
+  };
+  metadata?: Record<string, any>;
+  createdAt: string;
+}
+
+export interface DownloadStats {
+  totalDownloads: number;
+  uniqueUsers: number;
+  lastDownload?: string;
+  downloads: Array<{
+    date: string;
+    userEmail: string;
+    userName: string;
+  }>;
+}
+

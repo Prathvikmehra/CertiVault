@@ -91,7 +91,7 @@ export const listDocuments = async (
       delete queryToParse.status;
     }
 
-    const { page, limit, search, status, category, isFavorite, isArchived, sortBy } =
+    const { page, limit, search, status, category, isFavorite, isArchived, sortBy, startDate, endDate, owner } =
       getDocumentsSchema.parse(queryToParse);
 
     const result = await getDocuments({
@@ -103,6 +103,9 @@ export const listDocuments = async (
       isFavorite,
       isArchived,
       sortBy,
+      startDate,
+      endDate,
+      owner,
       ownerId: userId,
     });
 

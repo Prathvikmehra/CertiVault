@@ -203,7 +203,7 @@ documentSchema.index({ owner: 1, isFavorite: 1 });
 documentSchema.index({ category: 1, status: 1 });
 documentSchema.index({ tags: 1 });
 documentSchema.index({ createdAt: -1 });
-documentSchema.index({ title: "text", description: "text", tags: "text" });
+documentSchema.index({ title: "text", description: "text", tags: "text", ownerName: "text", fileName: "text" });
 
 // Compound index for search
 documentSchema.index({ owner: 1, isArchived: 1, status: 1, createdAt: -1 });

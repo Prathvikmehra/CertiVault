@@ -11,6 +11,7 @@ import { api } from "../api.js";
 interface DocumentPreviewModalProps {
   document: Document;
   onClose: () => void;
+  onToggleFavorite?: (id: string, isFavorite: boolean) => void;
 }
 
 const formatBytes = (bytes?: number) => {
@@ -28,7 +29,7 @@ const formatDate = (date: string) => {
   });
 };
 
-export function DocumentPreviewModal({ document, onClose }: DocumentPreviewModalProps) {
+export function DocumentPreviewModal({ document, onClose, onToggleFavorite }: DocumentPreviewModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -36,24 +37,32 @@ export function DocumentPreviewModal({ document, onClose }: DocumentPreviewModal
     setLoading(true);
     setError("");
     try {
-      const response = await api.getDocumentDownloadUrl(document._id);
-      window.open(response.data.url, "_blank");
+      await api.downloadDocument(document._id, document.fileName);
     } catch (err: any) {
-      setError(err.message || "Failed to get download URL");
+      setError(err.message || "Failed to download document");
     } finally {
       setLoading(false);
     }
   };
 
   const handleToggleFavorite = async () => {
+    // Optimistic update
+    const originalIsFavorite = document.isFavorite;
+    if (onToggleFavorite) {
+      onToggleFavorite(document._id, !originalIsFavorite);
+    }
+
     try {
       if (document.isFavorite) {
         await api.unfavoriteDocument(document._id);
       } else {
         await api.favoriteDocument(document._id);
       }
-      onClose();
     } catch (err: any) {
+      // Revert on error
+      if (onToggleFavorite) {
+        onToggleFavorite(document._id, originalIsFavorite);
+      }
       setError(err.message || "Failed to update favorite");
     }
   };

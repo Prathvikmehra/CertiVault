@@ -25,6 +25,10 @@ import { documentRouter } from "./modules/documents/document.routes.js";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { verificationRouter } from "./modules/verifications/verification.routes.js";
+import shareRouter from "./modules/shares/share.routes.js";
+import settingsRouter from "./modules/users/settings.routes.js";
+import notificationRouter from "./modules/notifications/notification.routes.js";
+import searchRouter from "./modules/search/search.routes.js";
 
 const env = getEnv();
 
@@ -188,6 +192,40 @@ export const createApp = (): Express => {
   app.use("/api/documents", documentRouter);
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/verifications", verificationRouter);
+  app.use("/api", shareRouter);
+  app.use("/api", settingsRouter);
+  app.use("/api", notificationRouter);
+  app.use("/api", searchRouter);
+
+  // Serve local files for development with proper headers
+  app.use("/api/files", (req, res, next) => {
+    express.static(path.join(process.cwd(), "uploads", "documents"))(req, res, (err) => {
+      if (!err && res.statusCode === 200) {
+        // Set proper MIME type based on file extension
+        const filePath = path.join(process.cwd(), "uploads", "documents", req.path);
+        const ext = path.extname(filePath).toLowerCase();
+        const mimeTypes: Record<string, string> = {
+          '.pdf': 'application/pdf',
+          '.doc': 'application/msword',
+          '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          '.xls': 'application/vnd.ms-excel',
+          '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.zip': 'application/zip',
+        };
+        if (mimeTypes[ext]) {
+          res.setHeader('Content-Type', mimeTypes[ext]);
+        }
+        // Set Content-Disposition for download
+        const filenameParam = req.query.filename as string;
+        const filename = filenameParam || path.basename(filePath);
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      }
+      next(err);
+    });
+  });
 
   // ============================================
   // ERROR HANDLING

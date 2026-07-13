@@ -12,6 +12,7 @@ interface User {
   role: string;
   avatar?: string;
   isEmailVerified: boolean;
+  createdAt?: string;
 }
 
 interface AuthContextType {

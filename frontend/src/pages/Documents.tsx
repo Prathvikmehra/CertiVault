@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  Archive,
+  ArchiveRestore,
   CheckCircle2,
   Files,
   Filter,
@@ -16,6 +18,7 @@ import { Sidebar } from "../components/Sidebar.js";
 import { Topbar } from "../components/Topbar.js";
 import { UploadModal } from "../components/UploadModal.js";
 import { DocumentPreviewModal } from "../components/DocumentPreviewModal.js";
+import { ShareModal } from "../components/ShareModal.js";
 import { DocumentCardSkeleton, TableSkeleton } from "../components/SkeletonLoader.js";
 
 const formatBytes = (bytes?: number) => {
@@ -28,14 +31,21 @@ const formatBytes = (bytes?: number) => {
 export default function Documents() {
   const navigate = useNavigate();
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [summary, setSummary] = useState<Summary>({ total: 0, verified: 0, pending: 0, archived: 0, favorites: 0, storageBytes: 0 });
+  const [summary, setSummary] = useState<Summary>({ total: 0, verified: 0, pending: 0, rejected: 0, archived: 0, favorites: 0, storageBytes: 0 });
+  const [filteredTotal, setFilteredTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [category, setCategory] = useState("all");
   const [isFavorite, setIsFavorite] = useState<boolean | undefined>(undefined);
+  const [isArchived, setIsArchived] = useState<boolean | undefined>(undefined);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [owner, setOwner] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareDocument, setShareDocument] = useState<Document | null>(null);
   const [previewDocument, setPreviewDocument] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
@@ -49,11 +59,12 @@ export default function Documents() {
     try {
       setLoading(true);
       const [documentResponse, summaryResponse] = await Promise.all([
-        api.getDocuments({ search, status, category, isFavorite, sortBy, page, limit: 24 }),
+        api.getDocuments({ search, status, category, isFavorite, isArchived, sortBy, startDate, endDate, owner, page, limit: 24 }),
         api.getDocumentSummary(),
       ]);
       setDocuments(documentResponse.documents);
       setSummary(summaryResponse.data);
+      setFilteredTotal(documentResponse.total);
       setTotalPages(documentResponse.totalPages);
     } catch (error: any) {
       console.error("Failed to load documents:", error);
@@ -61,7 +72,7 @@ export default function Documents() {
     } finally {
       setLoading(false);
     }
-  }, [search, status, category, isFavorite, sortBy, page]);
+  }, [search, status, category, isFavorite, isArchived, sortBy, startDate, endDate, owner, page]);
 
   useEffect(() => {
     load();
@@ -91,7 +102,36 @@ export default function Documents() {
     }
   };
 
+  const archive = async (id: string) => {
+    try {
+      await api.archiveDocument(id);
+      setToast("Document archived successfully.");
+      await load();
+    } catch (error: any) {
+      setToast(error.message || "Failed to archive document");
+    }
+  };
+
+  const restore = async (id: string) => {
+    try {
+      await api.restoreDocument(id);
+      setToast("Document restored successfully.");
+      await load();
+    } catch (error: any) {
+      setToast(error.message || "Failed to restore document");
+    }
+  };
+
   const toggleFavorite = async (id: string, isFavorite: boolean) => {
+    // Optimistic update
+    setDocuments(prevDocs => 
+      prevDocs.map(doc => 
+        doc._id === id 
+          ? { ...doc, isFavorite: !isFavorite, favoritedAt: !isFavorite ? new Date().toISOString() : undefined }
+          : doc
+      )
+    );
+
     try {
       if (isFavorite) {
         await api.unfavoriteDocument(id);
@@ -100,8 +140,15 @@ export default function Documents() {
         await api.favoriteDocument(id);
         setToast("Added to favorites");
       }
-      await load();
     } catch (error: any) {
+      // Revert on error
+      setDocuments(prevDocs => 
+        prevDocs.map(doc => 
+          doc._id === id 
+            ? { ...doc, isFavorite, favoritedAt: isFavorite ? doc.favoritedAt : undefined }
+            : doc
+        )
+      );
       setToast(error.message || "Failed to update favorite");
     }
   };
@@ -110,8 +157,7 @@ export default function Documents() {
 
   const download = async (id: string) => {
     try {
-      const { data } = await api.getDocumentDownloadUrl(id);
-      window.open(data.url, "_blank");
+      await api.downloadDocument(id);
       setToast("Download started.");
     } catch (error: any) {
       setToast(error.message || "Failed to download document");
@@ -123,6 +169,11 @@ export default function Documents() {
     setPreviewOpen(true);
   };
 
+  const openShare = (document: Document) => {
+    setShareDocument(document);
+    setShareOpen(true);
+  };
+
   const viewVerification = (id: string) => {
     navigate(`/verification/${id}`);
   };
@@ -131,11 +182,15 @@ export default function Documents() {
     setStatus("all");
     setCategory("all");
     setIsFavorite(undefined);
+    setIsArchived(undefined);
+    setStartDate("");
+    setEndDate("");
+    setOwner("all");
     setSearch("");
     setPage(1);
   };
 
-  const hasActiveFilters = status !== "all" || category !== "all" || isFavorite !== undefined || search !== "";
+  const hasActiveFilters = status !== "all" || category !== "all" || isFavorite !== undefined || isArchived !== undefined || search !== "" || startDate !== "" || endDate !== "" || owner !== "all";
 
   return (
     <div className="app-shell">
@@ -231,6 +286,47 @@ export default function Documents() {
                     <option value="size_desc">Size (Largest)</option>
                   </select>
                 </div>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-sm font-medium mb-2 text-[var(--text-primary)]">Archived</label>
+                  <select
+                    value={isArchived === undefined ? "all" : isArchived.toString()}
+                    onChange={(e) => setIsArchived(e.target.value === "all" ? undefined : e.target.value === "true")}
+                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  >
+                    <option value="all">All Documents</option>
+                    <option value="false">Active Only</option>
+                    <option value="true">Archived Only</option>
+                  </select>
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-sm font-medium mb-2 text-[var(--text-primary)]">From Date</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-sm font-medium mb-2 text-[var(--text-primary)]">To Date</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-sm font-medium mb-2 text-[var(--text-primary)]">Owner</label>
+                  <select
+                    value={owner}
+                    onChange={(e) => setOwner(e.target.value)}
+                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  >
+                    <option value="all">All Owners</option>
+                    <option value="me">My Documents</option>
+                  </select>
+                </div>
                 {hasActiveFilters && (
                   <button
                     className="button ghost px-4 py-3"
@@ -245,7 +341,7 @@ export default function Documents() {
 
           <div className="flex justify-between items-center mb-4">
             <p className="text-[var(--text-secondary)] text-sm">
-              {documents.length} of {summary.total} documents
+              {documents.length} of {filteredTotal} documents
             </p>
             <div className="flex gap-2">
               <button
@@ -297,11 +393,23 @@ export default function Documents() {
           ) : documents.length === 0 ? (
             <div className="empty-state">
               <Files size={64} />
-              <h3>No documents found</h3>
-              <p>Upload your first document to get started.</p>
-              <button className="button primary" onClick={() => setUploadOpen(true)}>
-                <Upload size={18} /> Upload Document
-              </button>
+              {hasActiveFilters ? (
+                <>
+                  <h3>No documents match your filters</h3>
+                  <p>Try adjusting your filters or search terms.</p>
+                  <button className="button primary" onClick={clearFilters}>
+                    <X size={18} /> Clear Filters
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h3>No documents found</h3>
+                  <p>Upload your first document to get started.</p>
+                  <button className="button primary" onClick={() => setUploadOpen(true)}>
+                    <Upload size={18} /> Upload Document
+                  </button>
+                </>
+              )}
             </div>
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -312,7 +420,18 @@ export default function Documents() {
                   onClick={() => viewPreview(doc)}
                 >
                   <div className="flex justify-between items-start mb-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-violet-500 rounded-lg flex items-center justify-center text-white text-2xl font-bold">
+                    {doc.thumbnailUrl ? (
+                      <img 
+                        src={doc.thumbnailUrl} 
+                        alt={doc.title}
+                        className="w-12 h-12 rounded-lg object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    <div className={`w-12 h-12 bg-gradient-to-br from-blue-500 to-violet-500 rounded-lg flex items-center justify-center text-white text-2xl font-bold ${doc.thumbnailUrl ? 'hidden' : ''}`}>
                       {doc.fileName.charAt(0).toUpperCase()}
                     </div>
                     <button
@@ -348,6 +467,35 @@ export default function Documents() {
                       Verify
                     </button>
                   </div>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      className="button ghost flex-1 py-2 text-sm"
+                      onClick={(e) => { e.stopPropagation(); openShare(doc); }}
+                    >
+                      Share
+                    </button>
+                    {doc.isArchived ? (
+                      <button
+                        className="button ghost flex-1 py-2 text-sm text-green-500"
+                        onClick={(e) => { e.stopPropagation(); restore(doc._id); }}
+                      >
+                        <ArchiveRestore size={14} /> Restore
+                      </button>
+                    ) : (
+                      <button
+                        className="button ghost flex-1 py-2 text-sm text-amber-500"
+                        onClick={(e) => { e.stopPropagation(); archive(doc._id); }}
+                      >
+                        <Archive size={14} /> Archive
+                      </button>
+                    )}
+                    <button
+                      className="button ghost flex-1 py-2 text-sm text-red-500"
+                      onClick={(e) => { e.stopPropagation(); remove(doc._id); }}
+                    >
+                      <X size={14} /> Delete
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -369,7 +517,18 @@ export default function Documents() {
                     <tr key={doc._id}>
                       <td>
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-violet-500 rounded-lg flex items-center justify-center text-white text-base font-bold">
+                          {doc.thumbnailUrl ? (
+                            <img 
+                              src={doc.thumbnailUrl} 
+                              alt={doc.title}
+                              className="w-10 h-10 rounded-lg object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                          ) : null}
+                          <div className={`w-10 h-10 bg-gradient-to-br from-blue-500 to-violet-500 rounded-lg flex items-center justify-center text-white text-base font-bold ${doc.thumbnailUrl ? 'hidden' : ''}`}>
                             {doc.fileName.charAt(0).toUpperCase()}
                           </div>
                           <div>
@@ -397,6 +556,15 @@ export default function Documents() {
                           <button className="icon-button" onClick={() => viewVerification(doc._id)} title="Verification">
                             <ShieldCheck size={16} />
                           </button>
+                          {doc.isArchived ? (
+                            <button className="icon-button text-green-500" onClick={() => restore(doc._id)} title="Restore">
+                              <ArchiveRestore size={16} />
+                            </button>
+                          ) : (
+                            <button className="icon-button text-amber-500" onClick={() => archive(doc._id)} title="Archive">
+                              <Archive size={16} />
+                            </button>
+                          )}
                           <button className="icon-button text-red-500" onClick={() => remove(doc._id)} title="Delete">
                             <X size={16} />
                           </button>
@@ -445,6 +613,15 @@ export default function Documents() {
             <DocumentPreviewModal
               document={previewDocument}
               onClose={() => setPreviewOpen(false)}
+              onToggleFavorite={toggleFavorite}
+            />
+          )}
+
+          {shareOpen && shareDocument && (
+            <ShareModal
+              documentId={shareDocument._id}
+              documentTitle={shareDocument.title}
+              onClose={() => setShareOpen(false)}
             />
           )}
 

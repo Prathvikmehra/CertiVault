@@ -42,6 +42,9 @@ interface GetDocumentsInput {
   isArchived?: boolean;
   sortBy?: string;
   ownerId: string;
+  startDate?: string;
+  endDate?: string;
+  owner?: string;
 }
 
 interface FilterDocumentsInput {
@@ -158,6 +161,11 @@ export const getDocuments = async (input: GetDocumentsInput) => {
     isArchived: isArchived ?? false,
   };
 
+  // Owner filter (if specified, override the default owner filter)
+  if (owner && owner !== "all" && owner !== "me") {
+    query.owner = owner;
+  }
+
   if (status && status !== "all") {
     query.status = status;
   }
@@ -173,6 +181,17 @@ export const getDocuments = async (input: GetDocumentsInput) => {
   // Text search
   if (search) {
     query.$text = { $search: search };
+  }
+
+  // Date range filter
+  if (startDate || endDate) {
+    query.createdAt = {};
+    if (startDate) {
+      query.createdAt.$gte = new Date(startDate);
+    }
+    if (endDate) {
+      query.createdAt.$lte = new Date(endDate);
+    }
   }
 
   // Build sort
@@ -555,7 +574,11 @@ export const getDocumentDownloadUrl = async (
     lastAccessedAt: new Date(),
   });
 
-  return await getPresignedDownloadUrl(document.storageKey);
+  return await getPresignedDownloadUrl(
+    document.storageKey,
+    document.storageProvider,
+    document.fileName
+  );
 };
 
 /**

@@ -98,7 +98,8 @@ export const uploadToS3 = async (
  */
 export const getPresignedDownloadUrl = async (
   key: string,
-  provider?: StorageProvider
+  provider?: StorageProvider,
+  originalFilename?: string
 ): Promise<string> => {
   // If provider is specified, use it directly
   if (provider === StorageProvider.S3 && s3Client && hasS3Credentials) {
@@ -106,6 +107,9 @@ export const getPresignedDownloadUrl = async (
       const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key,
+        ResponseContentDisposition: originalFilename 
+          ? `attachment; filename="${originalFilename}"`
+          : 'attachment',
       });
 
       const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
@@ -122,6 +126,9 @@ export const getPresignedDownloadUrl = async (
       const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key,
+        ResponseContentDisposition: originalFilename 
+          ? `attachment; filename="${originalFilename}"`
+          : 'attachment',
       });
 
       const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
@@ -131,8 +138,9 @@ export const getPresignedDownloadUrl = async (
     }
   }
 
-  // Fallback to local file URL
-  return `/api/files/${key}`;
+  // Fallback to local file URL with filename parameter
+  const filenameParam = originalFilename ? `?filename=${encodeURIComponent(originalFilename)}` : '';
+  return `/api/files/${key}${filenameParam}`;
 };
 
 /**

@@ -32,7 +32,7 @@ export default function DocumentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [document, setDocument] = useState<Document | null>(null);
-  const [summary, setSummary] = useState<Summary>({ total: 0, verified: 0, pending: 0, archived: 0, favorites: 0, storageBytes: 0 });
+  const [summary, setSummary] = useState<Summary>({ total: 0, verified: 0, pending: 0, rejected: 0, archived: 0, favorites: 0, storageBytes: 0 });
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
   const [mobileNav, setMobileNav] = useState(false);
@@ -73,8 +73,7 @@ export default function DocumentDetail() {
   const download = async () => {
     if (!document) return;
     try {
-      const { data } = await api.getDocumentDownloadUrl(document._id);
-      window.open(data.url, "_blank");
+      await api.downloadDocument(document._id, document.fileName);
       setToast("Download started.");
     } catch (error: any) {
       setToast(error.message || "Failed to download document");
@@ -83,6 +82,11 @@ export default function DocumentDetail() {
 
   const toggleFavorite = async () => {
     if (!document) return;
+    
+    // Optimistic update
+    const originalIsFavorite = document.isFavorite;
+    setDocument(prev => prev ? { ...prev, isFavorite: !prev.isFavorite } : null);
+
     try {
       if (document.isFavorite) {
         await api.unfavoriteDocument(document._id);
@@ -91,8 +95,9 @@ export default function DocumentDetail() {
         await api.favoriteDocument(document._id);
         setToast("Added to favorites");
       }
-      await loadDocument();
     } catch (error: any) {
+      // Revert on error
+      setDocument(prev => prev ? { ...prev, isFavorite: originalIsFavorite } : null);
       setToast(error.message || "Failed to update favorite");
     }
   };

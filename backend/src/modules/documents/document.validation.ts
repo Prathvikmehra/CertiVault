@@ -107,6 +107,9 @@ export const getDocumentsSchema = z.object({
   isFavorite: z.string().optional().transform((val) => val === "true"),
   isArchived: z.string().optional().transform((val) => val === "true"),
   sortBy: z.enum(SORT_OPTIONS).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  owner: z.string().optional(),
 });
 
 // Verify document schema

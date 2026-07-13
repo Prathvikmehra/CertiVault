@@ -7,14 +7,20 @@ import {
   HardDrive,
   ShieldCheck,
   Upload,
+  Search,
+  Share2,
+  Star,
+  XCircle,
+  Bell,
 } from "lucide-react";
 import { api } from "../api.js";
-import { Document, Summary } from "../types.js";
+import { Document, Summary, Activity, Notification } from "../types.js";
 import { Sidebar } from "../components/Sidebar.js";
 import { Topbar } from "../components/Topbar.js";
 import { StatCard } from "../components/StatCard.js";
 import { StatCardSkeleton } from "../components/SkeletonLoader.js";
-import { DocumentTable } from "../components/DocumentTable.js";
+import { ActivityTimeline } from "../components/ActivityTimeline.js";
+import { Notifications } from "../components/Notifications.js";
 import { UploadModal } from "../components/UploadModal.js";
 
 const formatBytes = (bytes?: number) => {
@@ -24,36 +30,55 @@ const formatBytes = (bytes?: number) => {
   return `${(bytes / 1024 ** index).toFixed(index > 1 ? 1 : 0)} ${units[index]}`;
 };
 
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good Morning";
+  if (hour < 17) return "Good Afternoon";
+  return "Good Evening";
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [summary, setSummary] = useState<Summary>({ total: 0, verified: 0, pending: 0, archived: 0, favorites: 0, storageBytes: 0 });
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
-  const [sortBy, setSortBy] = useState("newest");
+  const [summary, setSummary] = useState<Summary>({ total: 0, verified: 0, pending: 0, rejected: 0, archived: 0, favorites: 0, storageBytes: 0 });
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [recentDocuments, setRecentDocuments] = useState<Document[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
   const [mobileNav, setMobileNav] = useState(false);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [userName, setUserName] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const [documentResponse, summaryResponse] = await Promise.all([
-        api.getDocuments({ search, status, sortBy, page, limit: 20 }),
+      setLoading(true);
+      const [summaryResponse, activitiesResponse, notificationsResponse, recentResponse] = await Promise.all([
         api.getDocumentSummary(),
+        api.getActivityTimeline(10),
+        api.getNotifications(5),
+        api.getRecentDocuments(5),
       ]);
-      setDocuments(documentResponse.documents);
-      setSummary(summaryResponse.data);
-      setTotalPages(documentResponse.totalPages);
+      setSummary({
+        ...summaryResponse.data,
+        rejected: summaryResponse.data.rejected || 0,
+      });
+      setActivities(activitiesResponse.data);
+      setNotifications(notificationsResponse);
+      setRecentDocuments(recentResponse.data);
+      
+      // Get user name from auth context or localStorage
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        setUserName(user.name || user.email?.split("@")[0] || "User");
+      }
     } catch (error: any) {
-      console.error("Failed to load documents:", error);
-      setToast(error.message || "Failed to load documents");
+      console.error("Failed to load dashboard data:", error);
+      setToast(error.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
-  }, [search, status, sortBy, page]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -71,63 +96,25 @@ export default function Dashboard() {
     await load();
   };
 
-  const verify = async (id: string) => {
-    try {
-      await api.verifyDocumentStatus(id, "verified");
-      setToast("Document verified successfully.");
-      await load();
-    } catch (error: any) {
-      setToast(error.message || "Failed to verify document");
+  const handleQuickAction = (action: string) => {
+    switch (action) {
+      case "upload":
+        setUploadOpen(true);
+        break;
+      case "verify":
+        navigate("/documents?status=pending");
+        break;
+      case "share":
+        navigate("/shared-vaults");
+        break;
+      case "search":
+        navigate("/documents");
+        break;
     }
   };
 
-  const remove = async (id: string) => {
-    try {
-      await api.deleteDocument(id);
-      setToast("Document removed from the workspace.");
-      await load();
-    } catch (error: any) {
-      setToast(error.message || "Failed to delete document");
-    }
-  };
-
-  const toggleFavorite = async (id: string, isFavorite: boolean) => {
-    try {
-      if (isFavorite) {
-        await api.unfavoriteDocument(id);
-        setToast("Removed from favorites");
-      } else {
-        await api.favoriteDocument(id);
-        setToast("Added to favorites");
-      }
-      await load();
-    } catch (error: any) {
-      setToast(error.message || "Failed to update favorite");
-    }
-  };
-
-  const archive = async (id: string) => {
-    try {
-      await api.archiveDocument(id);
-      setToast("Document archived successfully.");
-      await load();
-    } catch (error: any) {
-      setToast(error.message || "Failed to archive document");
-    }
-  };
-
-  const restore = async (id: string) => {
-    try {
-      await api.restoreDocument(id);
-      setToast("Document restored successfully.");
-      await load();
-    } catch (error: any) {
-      setToast(error.message || "Failed to restore document");
-    }
-  };
-
-  const viewVerification = (id: string) => {
-    navigate(`/verification/${id}`);
+  const dismissNotification = (id: string) => {
+    setNotifications(notifications.filter(n => n.id !== id));
   };
 
   return (
@@ -141,12 +128,12 @@ export default function Dashboard() {
         />
       )}
       <main>
-        <Topbar search={search} setSearch={setSearch} setMobileNav={setMobileNav} />
+        <Topbar setMobileNav={setMobileNav} />
         <div className="content">
           <section className="hero-row">
             <div>
               <p className="eyebrow">DOCUMENT COMMAND CENTER</p>
-              <h1>Good morning, Krishna.</h1>
+              <h1>{getGreeting()}, {userName || "User"}.</h1>
               <p>Here's what's happening across your secure workspace.</p>
             </div>
             <button
@@ -157,9 +144,12 @@ export default function Dashboard() {
             </button>
           </section>
 
+          {/* Stats Grid */}
           <section className="stats-grid">
             {loading ? (
               <>
+                <StatCardSkeleton />
+                <StatCardSkeleton />
                 <StatCardSkeleton />
                 <StatCardSkeleton />
                 <StatCardSkeleton />
@@ -169,7 +159,7 @@ export default function Dashboard() {
               <>
                 <StatCard
                   icon={Files}
-                  label="Total documents"
+                  label="Total Documents"
                   value={summary.total}
                   note="Across your workspace"
                   tone="blue"
@@ -187,41 +177,150 @@ export default function Dashboard() {
                 />
                 <StatCard
                   icon={FileClock}
-                  label="Pending review"
+                  label="Pending"
                   value={summary.pending}
                   note="Requires attention"
                   tone="amber"
                 />
                 <StatCard
+                  icon={XCircle}
+                  label="Rejected"
+                  value={summary.rejected}
+                  note="Verification failed"
+                  tone="red"
+                />
+                <StatCard
+                  icon={Star}
+                  label="Favorites"
+                  value={summary.favorites}
+                  note="Starred documents"
+                  tone="violet"
+                />
+                <StatCard
                   icon={HardDrive}
-                  label="Secure storage"
+                  label="Storage Used"
                   value={formatBytes(summary.storageBytes)}
                   note="Encrypted at rest"
-                  tone="violet"
+                  tone="blue"
                 />
               </>
             )}
           </section>
 
-          <DocumentTable
-            documents={documents}
-            search={search}
-            setSearch={setSearch}
-            status={status}
-            setStatus={setStatus}
-            loading={loading}
-            onVerify={verify}
-            onDelete={remove}
-            onToggleFavorite={toggleFavorite}
-            onArchive={archive}
-            onRestore={restore}
-            page={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-            sortBy={sortBy}
-            setSortBy={setSortBy}
-            onViewVerification={viewVerification}
-          />
+          {/* Quick Actions */}
+          <section className="mb-8">
+            <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">Quick Actions</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <button
+                className="flex flex-col items-center gap-3 p-4 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl hover:border-blue-500 transition-all hover:transform hover:-translate-y-1"
+                onClick={() => handleQuickAction("upload")}
+              >
+                <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                  <Upload size={24} className="text-blue-500" />
+                </div>
+                <span className="text-sm font-medium text-[var(--text-primary)]">Upload</span>
+              </button>
+              <button
+                className="flex flex-col items-center gap-3 p-4 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl hover:border-green-500 transition-all hover:transform hover:-translate-y-1"
+                onClick={() => handleQuickAction("verify")}
+              >
+                <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center">
+                  <CheckCircle2 size={24} className="text-green-500" />
+                </div>
+                <span className="text-sm font-medium text-[var(--text-primary)]">Verify</span>
+              </button>
+              <button
+                className="flex flex-col items-center gap-3 p-4 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl hover:border-violet-500 transition-all hover:transform hover:-translate-y-1"
+                onClick={() => handleQuickAction("share")}
+              >
+                <div className="w-12 h-12 bg-violet-500/10 rounded-lg flex items-center justify-center">
+                  <Share2 size={24} className="text-violet-500" />
+                </div>
+                <span className="text-sm font-medium text-[var(--text-primary)]">Share</span>
+              </button>
+              <button
+                className="flex flex-col items-center gap-3 p-4 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl hover:border-amber-500 transition-all hover:transform hover:-translate-y-1"
+                onClick={() => handleQuickAction("search")}
+              >
+                <div className="w-12 h-12 bg-amber-500/10 rounded-lg flex items-center justify-center">
+                  <Search size={24} className="text-amber-500" />
+                </div>
+                <span className="text-sm font-medium text-[var(--text-primary)]">Search</span>
+              </button>
+            </div>
+          </section>
+
+          {/* Two Column Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Recent Activity Timeline */}
+            <ActivityTimeline activities={activities} loading={loading} />
+            
+            {/* Notifications */}
+            <Notifications 
+              notifications={notifications} 
+              loading={loading}
+              onDismiss={dismissNotification}
+            />
+          </div>
+
+          {/* Recent Uploads */}
+          <section className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-[var(--text-primary)]">Recent Uploads</h2>
+              <button
+                className="button ghost text-sm"
+                onClick={() => navigate("/documents")}
+              >
+                View All
+              </button>
+            </div>
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl p-4 animate-pulse">
+                    <div className="w-12 h-12 bg-[var(--bg-tertiary)] rounded-lg mb-3" />
+                    <div className="h-4 bg-[var(--bg-tertiary)] rounded w-3/4 mb-2" />
+                    <div className="h-3 bg-[var(--bg-tertiary)] rounded w-1/2" />
+                  </div>
+                ))}
+              </div>
+            ) : recentDocuments.length === 0 ? (
+              <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl p-8 text-center">
+                <Files size={48} className="mx-auto text-[var(--text-muted)] mb-3" />
+                <p className="text-[var(--text-secondary)]">No recent uploads</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {recentDocuments.map((doc) => (
+                  <div
+                    key={doc._id}
+                    className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl p-4 cursor-pointer hover:border-blue-500 transition-all"
+                    onClick={() => navigate(`/documents/${doc._id}`)}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-violet-500 rounded-lg flex items-center justify-center text-white text-xl font-bold">
+                        {doc.fileName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[var(--text-primary)] truncate">
+                          {doc.title}
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)] truncate">
+                          {formatBytes(doc.fileSize)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className={`badge ${doc.status === "verified" ? "green" : doc.status === "rejected" ? "red" : "amber"}`}>
+                        {doc.status}
+                      </span>
+                      {doc.isFavorite && <Star size={16} className="text-amber-500 fill-amber-500" />}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
 
           <footer>
             <span>
@@ -243,3 +342,4 @@ export default function Dashboard() {
     </div>
   );
 }
+
