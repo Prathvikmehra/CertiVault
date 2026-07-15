@@ -1,16 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  AlertCircle,
-  Users,
-  Link as LinkIcon,
-  Clock,
-  Eye,
-  Download,
-  Copy,
-  X,
-  ChevronRight,
-} from "lucide-react";
+import { AlertCircle, Users, Link as LinkIcon, Clock, Eye, Download, Copy, X, ChevronRight, CheckCircle2 } from "lucide-react";
 import { Sidebar } from "../components/Sidebar.js";
 import { Topbar } from "../components/Topbar.js";
 import { Summary, SharedDocument, SharedMember, AccessLog } from "../types.js";
@@ -23,369 +13,213 @@ export default function SharedVaults() {
   const [summary] = useState<Summary>({ total: 0, verified: 0, pending: 0, rejected: 0, archived: 0, favorites: 0, storageBytes: 0 });
   const [mobileNav, setMobileNav] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("my-shares");
-
-  // My shares
   const [myShares, setMyShares] = useState<SharedDocument[]>([]);
   const [isLoadingShares, setIsLoadingShares] = useState(false);
-
-  // Shared with me
   const [sharedWithMe, setSharedWithMe] = useState<SharedMember[]>([]);
   const [isLoadingSharedWithMe, setIsLoadingSharedWithMe] = useState(false);
-
-  // Access logs
   const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
-
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    if (activeTab === "my-shares") loadMyShares();
-    if (activeTab === "shared-with-me") loadSharedWithMe();
-    if (activeTab === "access-logs") loadAccessLogs();
+    if (activeTab === "my-shares")       loadMyShares();
+    if (activeTab === "shared-with-me")  loadSharedWithMe();
+    if (activeTab === "access-logs")     loadAccessLogs();
   }, [activeTab]);
 
+  useEffect(() => {
+    if (!success) return;
+    const t = setTimeout(() => setSuccess(""), 2500);
+    return () => clearTimeout(t);
+  }, [success]);
+
   const loadMyShares = async () => {
-    setIsLoadingShares(true);
-    setError("");
-    try {
-      const response = await api.getUserShares();
-      setMyShares(response.data.shares);
-    } catch (err: any) {
-      setError(err.message || "Failed to load shares");
-    } finally {
-      setIsLoadingShares(false);
-    }
+    setIsLoadingShares(true); setError("");
+    try { const r = await api.getUserShares(); setMyShares(r.data.shares); }
+    catch (err: any) { setError(err.message || "Failed to load shares"); }
+    finally { setIsLoadingShares(false); }
   };
-
   const loadSharedWithMe = async () => {
-    setIsLoadingSharedWithMe(true);
-    setError("");
-    try {
-      const response = await api.getSharedWithMe();
-      setSharedWithMe(response.data.members);
-    } catch (err: any) {
-      setError(err.message || "Failed to load shared documents");
-    } finally {
-      setIsLoadingSharedWithMe(false);
-    }
+    setIsLoadingSharedWithMe(true); setError("");
+    try { const r = await api.getSharedWithMe(); setSharedWithMe(r.data.members); }
+    catch (err: any) { setError(err.message || "Failed to load shared documents"); }
+    finally { setIsLoadingSharedWithMe(false); }
   };
-
   const loadAccessLogs = async () => {
-    setIsLoadingLogs(true);
-    setError("");
-    try {
-      const response = await api.getUserAccessLogs();
-      setAccessLogs(response.data.logs);
-    } catch (err: any) {
-      setError(err.message || "Failed to load access logs");
-    } finally {
-      setIsLoadingLogs(false);
-    }
+    setIsLoadingLogs(true); setError("");
+    try { const r = await api.getUserAccessLogs(); setAccessLogs(r.data.logs); }
+    catch (err: any) { setError(err.message || "Failed to load access logs"); }
+    finally { setIsLoadingLogs(false); }
   };
-
-  const revokeShare = async (shareId: string) => {
-    try {
-      await api.revokeShare(shareId);
-      setSuccess("Share link revoked");
-      loadMyShares();
-    } catch (err: any) {
-      setError(err.message || "Failed to revoke share");
-    }
+  const revokeShare = async (id: string) => {
+    try { await api.revokeShare(id); setSuccess("Share link revoked"); loadMyShares(); }
+    catch (err: any) { setError(err.message || "Failed to revoke share"); }
   };
-
   const copyToClipboard = async (url: string) => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setSuccess("Link copied to clipboard");
-      setTimeout(() => setSuccess(""), 2000);
-    } catch (err) {
-      setError("Failed to copy to clipboard");
-    }
+    try { await navigator.clipboard.writeText(url); setSuccess("Link copied to clipboard"); }
+    catch { setError("Failed to copy to clipboard"); }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
+  const fmt = (s: string) => new Date(s).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 
-  const getActionIcon = (action: string) => {
-    switch (action) {
-      case "view": return <Eye size={16} />;
-      case "download": return <Download size={16} />;
-      case "share": return <LinkIcon size={16} />;
-      default: return <AlertCircle size={16} />;
-    }
+  const actionIcon = (action: string) => {
+    if (action === "view")     return <Eye size={15} />;
+    if (action === "download") return <Download size={15} />;
+    if (action === "share")    return <LinkIcon size={15} />;
+    return <AlertCircle size={15} />;
   };
-
-  const getActionColor = (action: string) => {
-    switch (action) {
-      case "view": return "text-blue-500";
-      case "download": return "text-green-500";
-      case "share": return "text-purple-500";
-      case "revoke": return "text-red-500";
-      default: return "text-gray-500";
-    }
+  const actionColor = (action: string) => {
+    if (action === "view")     return "var(--accent-blue)";
+    if (action === "download") return "var(--accent-green)";
+    if (action === "share")    return "var(--accent-violet)";
+    if (action === "revoke")   return "var(--accent-red)";
+    return "var(--text-muted)";
   };
 
   return (
     <div className="app-shell">
       <Sidebar mobileNav={mobileNav} summary={summary} />
-      {mobileNav && (
-        <button
-          className="mobile-overlay"
-          onClick={() => setMobileNav(false)}
-          aria-label="Close menu"
-        />
-      )}
+      {mobileNav && <button className="mobile-overlay" onClick={() => setMobileNav(false)} aria-label="Close navigation" />}
       <main>
         <Topbar search="" setSearch={() => {}} setMobileNav={setMobileNav} />
         <div className="content">
+
           <section className="hero-row">
             <div>
-              <p className="eyebrow">SHARED VAULTS</p>
+              <p className="eyebrow">Shared Vaults</p>
               <h1>Shared Vaults</h1>
               <p>Manage shared document links and access.</p>
             </div>
           </section>
 
-          {/* Error/Success Messages */}
+          {/* Messages */}
           {error && (
-            <div className="upload-error flex items-center gap-2 text-red-600 mb-4">
-              <AlertCircle size={18} />
-              {error}
+            <div className="upload-error" style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }} role="alert">
+              <AlertCircle size={16} aria-hidden="true" />{error}
             </div>
           )}
           {success && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-700 mb-4">
-              <AlertCircle size={18} />
-              {success}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 0.875rem", background: "rgba(16,185,129,.08)", border: "1px solid rgba(16,185,129,.2)", borderRadius: "var(--radius-md)", color: "var(--accent-green)", fontSize: "0.875rem", marginBottom: "1rem" }} role="status">
+              <CheckCircle2 size={16} aria-hidden="true" />{success}
             </div>
           )}
 
           {/* Tabs */}
-          <div className="flex gap-4 border-b border-[var(--border-color)] mb-6">
-            <button
-              className={`pb-3 px-1 font-medium transition-colors ${
-                activeTab === "my-shares"
-                  ? "text-[var(--accent-blue)] border-b-2 border-[var(--accent-blue)]"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
-              onClick={() => setActiveTab("my-shares")}
-            >
-              <div className="flex items-center gap-2">
-                <LinkIcon size={18} />
-                My Shares ({myShares.length})
-              </div>
-            </button>
-            <button
-              className={`pb-3 px-1 font-medium transition-colors ${
-                activeTab === "shared-with-me"
-                  ? "text-[var(--accent-blue)] border-b-2 border-[var(--accent-blue)]"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
-              onClick={() => setActiveTab("shared-with-me")}
-            >
-              <div className="flex items-center gap-2">
-                <Users size={18} />
-                Shared with Me ({sharedWithMe.length})
-              </div>
-            </button>
-            <button
-              className={`pb-3 px-1 font-medium transition-colors ${
-                activeTab === "access-logs"
-                  ? "text-[var(--accent-blue)] border-b-2 border-[var(--accent-blue)]"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
-              onClick={() => setActiveTab("access-logs")}
-            >
-              <div className="flex items-center gap-2">
-                <Clock size={18} />
-                Access Logs
-              </div>
-            </button>
+          <div className="tabs" role="tablist">
+            {([
+              { key: "my-shares",      icon: <LinkIcon size={16} />, label: `My Shares (${myShares.length})` },
+              { key: "shared-with-me", icon: <Users size={16} />,    label: `Shared with Me (${sharedWithMe.length})` },
+              { key: "access-logs",    icon: <Clock size={16} />,    label: "Access Logs" },
+            ] as const).map(({ key, icon, label }) => (
+              <button key={key} role="tab" aria-selected={activeTab === key}
+                className={`tab-btn ${activeTab === key ? "active" : ""}`}
+                onClick={() => setActiveTab(key as Tab)}>
+                {icon}{label}
+              </button>
+            ))}
           </div>
 
-          {/* My Shares Tab */}
+          {/* My Shares */}
           {activeTab === "my-shares" && (
-            <div>
-              {isLoadingShares ? (
-                <div className="text-center text-[var(--text-muted)] py-8">Loading shares...</div>
-              ) : myShares.length === 0 ? (
-                <div className="empty-state">
-                  <LinkIcon size={64} />
-                  <h3>No Shared Documents</h3>
-                  <p>You haven't shared any documents yet. Go to Documents to share a document.</p>
-                  <button className="button primary" onClick={() => navigate("/documents")}>
-                    Go to Documents
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {myShares.map((share) => (
-                    <div
-                      key={share._id}
-                      className="p-4 bg-[var(--bg-tertiary)] rounded-lg flex items-center justify-between"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-medium text-[var(--text-primary)]">{share.documentTitle}</h3>
-                          {!share.isActive && (
-                            <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">Revoked</span>
-                          )}
-                        </div>
-                        <div className="text-sm text-[var(--text-muted)] mt-1">
-                          {share.documentFileName}
-                        </div>
-                        <div className="flex items-center gap-4 mt-2 text-xs text-[var(--text-muted)]">
-                          {share.expiresAt && (
-                            <span className="flex items-center gap-1">
-                              <Clock size={12} />
-                              Expires: {formatDate(share.expiresAt)}
-                            </span>
-                          )}
-                          {share.maxAccessCount && (
-                            <span>
-                              Access: {share.currentAccessCount}/{share.maxAccessCount}
-                            </span>
-                          )}
-                          <span>
-                            Created: {formatDate(share.createdAt)}
-                          </span>
-                        </div>
+            isLoadingShares ? (
+              <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}><div className="spinner" /></div>
+            ) : myShares.length === 0 ? (
+              <div className="empty-state">
+                <LinkIcon size={52} />
+                <h3>No shared documents</h3>
+                <p>You haven't shared any documents yet.</p>
+                <button className="button primary" onClick={() => navigate("/documents")}>Go to Documents</button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+                {myShares.map(share => (
+                  <div key={share._id} className="section-card-row card" style={{ display: "flex", alignItems: "flex-start", gap: "1rem", padding: "1rem 1.25rem" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem", flexWrap: "wrap" }}>
+                        <h3 style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>{share.documentTitle}</h3>
+                        {!share.isActive && <span className="badge red">Revoked</span>}
                       </div>
-                      <div className="flex items-center gap-2 ml-4">
-                        <button
-                          className="icon-button"
-                          onClick={() => copyToClipboard(share.shareUrl)}
-                          title="Copy link"
-                        >
-                          <Copy size={18} />
-                        </button>
-                        {share.isActive && (
-                          <button
-                            className="icon-button text-red-500 hover:text-red-700"
-                            onClick={() => revokeShare(share._id)}
-                            title="Revoke share"
-                          >
-                            <X size={18} />
-                          </button>
-                        )}
+                      <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>{share.documentFileName}</p>
+                      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                        {share.expiresAt && <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}><Clock size={12} />Expires {fmt(share.expiresAt)}</span>}
+                        {share.maxAccessCount && <span>Access {share.currentAccessCount}/{share.maxAccessCount}</span>}
+                        <span>Created {fmt(share.createdAt)}</span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    <div style={{ display: "flex", gap: "0.375rem", flexShrink: 0 }}>
+                      <button className="icon-button" style={{ width: 32, height: 32 }} onClick={() => copyToClipboard(share.shareUrl)} title="Copy link" aria-label="Copy share link"><Copy size={15} /></button>
+                      {share.isActive && (
+                        <button className="icon-button" style={{ width: 32, height: 32, color: "var(--accent-red)" }} onClick={() => revokeShare(share._id)} title="Revoke" aria-label="Revoke share"><X size={15} /></button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
 
-          {/* Shared with Me Tab */}
+          {/* Shared with Me */}
           {activeTab === "shared-with-me" && (
-            <div>
-              {isLoadingSharedWithMe ? (
-                <div className="text-center text-[var(--text-muted)] py-8">Loading shared documents...</div>
-              ) : sharedWithMe.length === 0 ? (
-                <div className="empty-state">
-                  <Users size={64} />
-                  <h3>No Shared Documents</h3>
-                  <p>No one has shared documents with you yet.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {sharedWithMe.map((member) => (
-                    <div
-                      key={member._id}
-                      className="p-4 bg-[var(--bg-tertiary)] rounded-lg flex items-center justify-between"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-medium text-[var(--text-primary)]">
-                            {member.invitedByName}
-                          </h3>
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            member.permission === "admin"
-                              ? "bg-purple-100 text-purple-700"
-                              : member.permission === "editor"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-blue-100 text-blue-700"
-                          }`}>
-                            {member.permission}
-                          </span>
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            member.inviteStatus === "accepted"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-yellow-100 text-yellow-700"
-                          }`}>
-                            {member.inviteStatus}
-                          </span>
-                        </div>
-                        <div className="text-sm text-[var(--text-muted)] mt-1">
-                          {member.invitedByEmail}
-                        </div>
-                        <div className="text-xs text-[var(--text-muted)] mt-2">
-                          Shared: {formatDate(member.createdAt)}
-                        </div>
+            isLoadingSharedWithMe ? (
+              <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}><div className="spinner" /></div>
+            ) : sharedWithMe.length === 0 ? (
+              <div className="empty-state">
+                <Users size={52} />
+                <h3>Nothing shared with you</h3>
+                <p>No one has shared documents with you yet.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+                {sharedWithMe.map(member => (
+                  <div key={member._id} className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1rem 1.25rem" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem", flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 600, color: "var(--text-primary)", fontSize: "0.9375rem" }}>{member.invitedByName}</span>
+                        <span className={`badge ${member.permission === "admin" ? "violet" : member.permission === "editor" ? "green" : "blue"}`}>{member.permission}</span>
+                        <span className={`badge ${member.inviteStatus === "accepted" ? "green" : "amber"}`}>{member.inviteStatus}</span>
                       </div>
-                      <button
-                        className="icon-button ml-4"
-                        onClick={() => navigate(`/documents`)}
-                        title="View document"
-                      >
-                        <ChevronRight size={18} />
-                      </button>
+                      <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>{member.invitedByEmail}</p>
+                      <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>Shared {fmt(member.createdAt)}</p>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    <button className="icon-button" style={{ width: 32, height: 32 }} onClick={() => navigate("/documents")} aria-label="View document"><ChevronRight size={16} /></button>
+                  </div>
+                ))}
+              </div>
+            )
           )}
 
-          {/* Access Logs Tab */}
+          {/* Access Logs */}
           {activeTab === "access-logs" && (
-            <div>
-              {isLoadingLogs ? (
-                <div className="text-center text-[var(--text-muted)] py-8">Loading access logs...</div>
-              ) : accessLogs.length === 0 ? (
-                <div className="empty-state">
-                  <Clock size={64} />
-                  <h3>No Access Logs</h3>
-                  <p>No access activity recorded yet.</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {accessLogs.map((log) => (
-                    <div
-                      key={log._id}
-                      className="p-3 bg-[var(--bg-tertiary)] rounded-lg flex items-center gap-3"
-                    >
-                      <div className={`p-2 rounded-full bg-[var(--bg-secondary)] ${getActionColor(log.action)}`}>
-                        {getActionIcon(log.action)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-[var(--text-primary)] capitalize">
-                            {log.action}
-                          </span>
-                          <span className="text-sm text-[var(--text-muted)]">
-                            {log.documentTitle}
-                          </span>
-                        </div>
-                        <div className="text-xs text-[var(--text-muted)] mt-1">
-                          {log.userEmail} • {formatDate(log.createdAt)}
-                        </div>
-                      </div>
+            isLoadingLogs ? (
+              <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}><div className="spinner" /></div>
+            ) : accessLogs.length === 0 ? (
+              <div className="empty-state">
+                <Clock size={52} />
+                <h3>No access logs</h3>
+                <p>No access activity has been recorded yet.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                {accessLogs.map(log => (
+                  <div key={log._id} style={{ display: "flex", alignItems: "center", gap: "0.875rem", padding: "0.75rem 1rem", background: "var(--bg-secondary)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)" }}>
+                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--bg-tertiary)", display: "flex", alignItems: "center", justifyContent: "center", color: actionColor(log.action), flexShrink: 0 }}>
+                      {actionIcon(log.action)}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 600, color: "var(--text-primary)", fontSize: "0.875rem", textTransform: "capitalize" }}>{log.action}</span>
+                        <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>{log.documentTitle}</span>
+                      </div>
+                      <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.125rem" }}>{log.userEmail} · {fmt(log.createdAt)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
         </div>
       </main>
     </div>
   );
 }
-

@@ -10,7 +10,6 @@ import {
   Folder,
   ArrowRight,
   Loader2,
-  Command,
 } from "lucide-react";
 import { api } from "../api.js";
 
@@ -45,7 +44,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
   
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debounceRef = useRef<any>(null);
 
   // Load recent searches on mount
   useEffect(() => {
@@ -130,7 +129,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
     setShowSuggestions(e.target.value.trim().length >= 2);
   };
 
-  const handleResultClick = (result: SearchResult) => {
+  const handleResultClick = (_result: SearchResult) => {
     // Save to recent searches
     const updatedRecent = [query, ...recentSearches.filter(s => s !== query)].slice(0, 5);
     setRecentSearches(updatedRecent);

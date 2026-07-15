@@ -1,6 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { CloudUpload, FileCheck2, Upload, X, CheckCircle2, AlertCircle, RefreshCw, FileImage, FileText } from "lucide-react";
-import { api } from "../api.js";
+import { CloudUpload, FileCheck2, Upload, X, CheckCircle2, AlertCircle, RefreshCw, FileText } from "lucide-react";
 
 interface UploadModalProps {
   onClose: () => void;

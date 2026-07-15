@@ -157,24 +157,18 @@ const userSchema = new Schema<IUser>(
 );
 
 // Index for efficient queries
-userSchema.index({ email: 1 });
 userSchema.index({ role: 1, isActive: 1 });
 userSchema.index({ createdAt: -1 });
 
 // Pre-save middleware to hash password
-userSchema.pre("save", async function (this: any, next: (err?: Error) => void) {
+userSchema.pre("save", async function (this: any) {
   if (!this.isModified("passwordHash")) {
-    return next();
+    return;
   }
   
-  try {
-    const env = getEnv();
-    const rounds = env.BCRYPT_ROUNDS || 12;
-    this.passwordHash = await bcrypt.hash(this.passwordHash, rounds);
-    next();
-  } catch (error) {
-    next(error as Error);
-  }
+  const env = getEnv();
+  const rounds = env.BCRYPT_ROUNDS || 12;
+  this.passwordHash = await bcrypt.hash(this.passwordHash, rounds);
 });
 
 // Instance method: Compare password

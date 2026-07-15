@@ -36,7 +36,7 @@ const SORT_OPTIONS = ["newest", "oldest", "title_asc", "title_desc", "size_asc",
 export const uploadDocumentSchema = z.object({
   title: z.string().min(1, "Title is required").max(255, "Title cannot exceed 255 characters"),
   description: z.string().max(2000, "Description cannot exceed 2000 characters").optional(),
-  category: z.enum(CATEGORIES_STRICT, {
+  category: z.enum(CATEGORIES_STRICT as unknown as [string, ...string[]], {
     errorMap: () => ({ message: "Invalid category" }),
   }),
   tags: z.union([
@@ -52,11 +52,11 @@ export const uploadDocumentSchema = z.object({
 export const updateDocumentSchema = z.object({
   title: z.string().min(1, "Title is required").max(255, "Title cannot exceed 255 characters").optional(),
   description: z.string().max(2000, "Description cannot exceed 2000 characters").optional(),
-  category: z.enum(CATEGORIES_STRICT, {
+  category: z.enum(CATEGORIES_STRICT as unknown as [string, ...string[]], {
     errorMap: () => ({ message: "Invalid category" }),
   }).optional(),
   tags: z.array(z.string().max(50)).max(10, "Maximum 10 tags allowed").optional(),
-  status: z.enum(STATUS_VALUES, {
+  status: z.enum(STATUS_VALUES as unknown as [string, ...string[]], {
     errorMap: () => ({ message: "Invalid status" }),
   }).optional(),
 });
@@ -70,13 +70,13 @@ export const searchDocumentsSchema = z.object({
 
 // Filter documents schema
 export const filterDocumentsSchema = z.object({
-  category: z.enum(CATEGORIES, {
+  category: z.enum(CATEGORIES as unknown as [string, ...string[]], {
     errorMap: () => ({ message: "Invalid category" }),
   }).optional(),
-  status: z.enum(STATUS_VALUES, {
+  status: z.enum(STATUS_VALUES as unknown as [string, ...string[]], {
     errorMap: () => ({ message: "Invalid status" }),
   }).optional(),
-  verificationStatus: z.enum(VERIFICATION_STATUS_VALUES, {
+  verificationStatus: z.enum(VERIFICATION_STATUS_VALUES as unknown as [string, ...string[]], {
     errorMap: () => ({ message: "Invalid verification status" }),
   }).optional(),
   fileType: z.string().optional(),
@@ -90,7 +90,7 @@ export const filterDocumentsSchema = z.object({
 
 // Sort documents schema
 export const sortDocumentsSchema = z.object({
-  sortBy: z.enum(SORT_OPTIONS, {
+  sortBy: z.enum(SORT_OPTIONS as unknown as [string, ...string[]], {
     errorMap: () => ({ message: "Invalid sort option" }),
   }),
   page: z.string().optional().transform((val) => (val ? parseInt(val) : 1)),
@@ -102,11 +102,11 @@ export const getDocumentsSchema = z.object({
   page: z.string().optional().transform((val) => (val ? parseInt(val) : 1)),
   limit: z.string().optional().transform((val) => (val ? parseInt(val) : 20)),
   search: z.string().optional(),
-  status: z.enum(STATUS_VALUES).optional(),
-  category: z.enum(CATEGORIES).optional(),
+  status: z.enum(STATUS_VALUES as unknown as [string, ...string[]]).optional(),
+  category: z.enum(CATEGORIES as unknown as [string, ...string[]]).optional(),
   isFavorite: z.string().optional().transform((val) => val === "true"),
   isArchived: z.string().optional().transform((val) => val === "true"),
-  sortBy: z.enum(SORT_OPTIONS).optional(),
+  sortBy: z.enum(SORT_OPTIONS as unknown as [string, ...string[]]).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   owner: z.string().optional(),
@@ -114,7 +114,7 @@ export const getDocumentsSchema = z.object({
 
 // Verify document schema
 export const verifyDocumentSchema = z.object({
-  status: z.enum(["verified", "rejected"], {
+  status: z.enum(["verified", "rejected"] as [string, ...string[]], {
     errorMap: () => ({ message: "Invalid status" }),
   }),
   notes: z.string().max(500, "Notes cannot exceed 500 characters").optional(),

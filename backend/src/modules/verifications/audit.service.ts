@@ -112,7 +112,7 @@ export const getAuditLogs = async (
   entityType: string,
   limit: number = 50
 ): Promise<IAuditLog[]> => {
-  const logs = await AuditLogModel.find({ entityId, entityType })
+  const logs = await AuditLogModel.find({ entityId, entityType } as any)
     .sort({ timestamp: -1 })
     .limit(limit)
     .lean()

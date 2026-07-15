@@ -1,20 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  CheckCircle2,
-  FileClock,
-  Files,
-  HardDrive,
-  ShieldCheck,
-  Upload,
-  Search,
-  Share2,
-  Star,
-  XCircle,
-  Bell,
+  CheckCircle2, FileClock, Files, HardDrive,
+  ShieldCheck, Upload, Search, Share2, Star, XCircle,
 } from "lucide-react";
 import { api } from "../api.js";
-import { Document, Summary, Activity, Notification } from "../types.js";
+import { Document, Summary, Activity, AppNotification } from "../types.js";
 import { Sidebar } from "../components/Sidebar.js";
 import { Topbar } from "../components/Topbar.js";
 import { StatCard } from "../components/StatCard.js";
@@ -24,24 +15,24 @@ import { Notifications } from "../components/Notifications.js";
 import { UploadModal } from "../components/UploadModal.js";
 
 const formatBytes = (bytes?: number) => {
-  if (!bytes) return "0 MB";
+  if (!bytes) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** index).toFixed(index > 1 ? 1 : 0)} ${units[index]}`;
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** i).toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
 };
 
 const getGreeting = () => {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good Morning";
-  if (hour < 17) return "Good Afternoon";
-  return "Good Evening";
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
 };
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<Summary>({ total: 0, verified: 0, pending: 0, rejected: 0, archived: 0, favorites: 0, storageBytes: 0 });
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [recentDocuments, setRecentDocuments] = useState<Document[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -52,42 +43,43 @@ export default function Dashboard() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [summaryResponse, activitiesResponse, notificationsResponse, recentResponse] = await Promise.all([
+      const [summaryRes, activitiesRes, notifRes, recentRes] = await Promise.all([
         api.getDocumentSummary(),
         api.getActivityTimeline(10),
         api.getNotifications(5),
         api.getRecentDocuments(5),
       ]);
-      setSummary({
-        ...summaryResponse.data,
-        rejected: summaryResponse.data.rejected || 0,
-      });
-      setActivities(activitiesResponse.data);
-      setNotifications(notificationsResponse);
-      setRecentDocuments(recentResponse.data);
-      
-      // Get user name from auth context or localStorage
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        setUserName(user.name || user.email?.split("@")[0] || "User");
+      setSummary({ ...summaryRes.data, rejected: summaryRes.data.rejected || 0 });
+      setActivities(activitiesRes.data);
+      const formattedNotifications = (((notifRes as any)?.data?.notifications || (notifRes as any)?.notifications || []) as any[]).map(n => ({
+        id: n._id || n.id,
+        type: (n.type === "info" || n.type === "success" || n.type === "warning" || n.type === "error") ? n.type : "info",
+        title: n.title,
+        message: n.message,
+        documentId: n.data?.documentId || n.documentId,
+        documentTitle: n.data?.documentTitle || n.documentTitle,
+        timestamp: n.createdAt || n.timestamp,
+        read: n.isRead !== undefined ? n.isRead : !!n.read
+      }));
+      setNotifications(formattedNotifications);
+      setRecentDocuments(recentRes.data);
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const u = JSON.parse(stored);
+        setUserName(u.name || u.email?.split("@")[0] || "");
       }
-    } catch (error: any) {
-      console.error("Failed to load dashboard data:", error);
-      setToast(error.message || "Failed to load dashboard data");
+    } catch (err: any) {
+      setToast(err.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
+  useEffect(() => { load(); }, [load]);
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(() => setToast(""), 3500);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => setToast(""), 3500);
+    return () => clearTimeout(t);
   }, [toast]);
 
   const refreshAfterUpload = async () => {
@@ -97,224 +89,150 @@ export default function Dashboard() {
   };
 
   const handleQuickAction = (action: string) => {
-    switch (action) {
-      case "upload":
-        setUploadOpen(true);
-        break;
-      case "verify":
-        navigate("/documents?status=pending");
-        break;
-      case "share":
-        navigate("/shared-vaults");
-        break;
-      case "search":
-        navigate("/documents");
-        break;
-    }
+    if (action === "upload") setUploadOpen(true);
+    else if (action === "verify") navigate("/verification");
+    else if (action === "share") navigate("/shared-vaults");
+    else if (action === "search") navigate("/documents");
   };
 
-  const dismissNotification = (id: string) => {
-    setNotifications(notifications.filter(n => n.id !== id));
-  };
+  const quickActions = [
+    { key: "upload", icon: Upload,      label: "Upload",  color: "var(--accent-blue)",   bg: "rgba(59,130,246,.1)"  },
+    { key: "verify", icon: CheckCircle2, label: "Verify",  color: "var(--accent-green)",  bg: "rgba(16,185,129,.1)"  },
+    { key: "share",  icon: Share2,       label: "Share",   color: "var(--accent-violet)", bg: "rgba(139,92,246,.1)"  },
+    { key: "search", icon: Search,       label: "Browse",  color: "var(--accent-amber)",  bg: "rgba(245,158,11,.1)"  },
+  ];
 
   return (
     <div className="app-shell">
       <Sidebar mobileNav={mobileNav} summary={summary} />
       {mobileNav && (
-        <button
-          className="mobile-overlay"
-          onClick={() => setMobileNav(false)}
-          aria-label="Close menu"
-        />
+        <button className="mobile-overlay" onClick={() => setMobileNav(false)} aria-label="Close navigation" />
       )}
       <main>
         <Topbar setMobileNav={setMobileNav} />
         <div className="content">
+
+          {/* Hero */}
           <section className="hero-row">
             <div>
-              <p className="eyebrow">DOCUMENT COMMAND CENTER</p>
-              <h1>{getGreeting()}, {userName || "User"}.</h1>
+              <p className="eyebrow">Command center</p>
+              <h1>{getGreeting()}{userName ? `, ${userName}` : ""}.</h1>
               <p>Here's what's happening across your secure workspace.</p>
             </div>
-            <button
-              className="button primary upload-button"
-              onClick={() => setUploadOpen(true)}
-            >
-              <Upload size={18} /> Upload document
+            <button className="button primary upload-button" onClick={() => setUploadOpen(true)}>
+              <Upload size={17} aria-hidden="true" /> Upload document
             </button>
           </section>
 
-          {/* Stats Grid */}
-          <section className="stats-grid">
+          {/* Stats */}
+          <section className="stats-grid" aria-label="Document statistics">
             {loading ? (
-              <>
-                <StatCardSkeleton />
-                <StatCardSkeleton />
-                <StatCardSkeleton />
-                <StatCardSkeleton />
-                <StatCardSkeleton />
-                <StatCardSkeleton />
-              </>
+              <><StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton />
+                <StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton /></>
             ) : (
               <>
-                <StatCard
-                  icon={Files}
-                  label="Total Documents"
-                  value={summary.total}
-                  note="Across your workspace"
-                  tone="blue"
-                />
-                <StatCard
-                  icon={CheckCircle2}
-                  label="Verified"
-                  value={summary.verified}
-                  note={`${
-                    summary.total
-                      ? Math.round((summary.verified / summary.total) * 100)
-                      : 0
-                  }% verification rate`}
-                  tone="green"
-                />
-                <StatCard
-                  icon={FileClock}
-                  label="Pending"
-                  value={summary.pending}
-                  note="Requires attention"
-                  tone="amber"
-                />
-                <StatCard
-                  icon={XCircle}
-                  label="Rejected"
-                  value={summary.rejected}
-                  note="Verification failed"
-                  tone="red"
-                />
-                <StatCard
-                  icon={Star}
-                  label="Favorites"
-                  value={summary.favorites}
-                  note="Starred documents"
-                  tone="violet"
-                />
-                <StatCard
-                  icon={HardDrive}
-                  label="Storage Used"
-                  value={formatBytes(summary.storageBytes)}
-                  note="Encrypted at rest"
-                  tone="blue"
-                />
+                <StatCard icon={Files}       label="Total Documents" value={summary.total}               note="Across your workspace"           tone="blue"   />
+                <StatCard icon={CheckCircle2} label="Verified"        value={summary.verified}            note={`${summary.total ? Math.round((summary.verified / summary.total) * 100) : 0}% verification rate`} tone="green"  />
+                <StatCard icon={FileClock}    label="Pending"         value={summary.pending}             note="Requires attention"              tone="amber"  />
+                <StatCard icon={XCircle}      label="Rejected"        value={summary.rejected}            note="Verification failed"             tone="red"    />
+                <StatCard icon={Star}         label="Favorites"       value={summary.favorites}           note="Starred documents"               tone="violet" />
+                <StatCard icon={HardDrive}    label="Storage used"    value={formatBytes(summary.storageBytes)} note="Encrypted at rest"          tone="blue"   />
               </>
             )}
           </section>
 
           {/* Quick Actions */}
           <section className="mb-8">
-            <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">Quick Actions</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <button
-                className="flex flex-col items-center gap-3 p-4 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl hover:border-blue-500 transition-all hover:transform hover:-translate-y-1"
-                onClick={() => handleQuickAction("upload")}
-              >
-                <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                  <Upload size={24} className="text-blue-500" />
-                </div>
-                <span className="text-sm font-medium text-[var(--text-primary)]">Upload</span>
-              </button>
-              <button
-                className="flex flex-col items-center gap-3 p-4 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl hover:border-green-500 transition-all hover:transform hover:-translate-y-1"
-                onClick={() => handleQuickAction("verify")}
-              >
-                <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center">
-                  <CheckCircle2 size={24} className="text-green-500" />
-                </div>
-                <span className="text-sm font-medium text-[var(--text-primary)]">Verify</span>
-              </button>
-              <button
-                className="flex flex-col items-center gap-3 p-4 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl hover:border-violet-500 transition-all hover:transform hover:-translate-y-1"
-                onClick={() => handleQuickAction("share")}
-              >
-                <div className="w-12 h-12 bg-violet-500/10 rounded-lg flex items-center justify-center">
-                  <Share2 size={24} className="text-violet-500" />
-                </div>
-                <span className="text-sm font-medium text-[var(--text-primary)]">Share</span>
-              </button>
-              <button
-                className="flex flex-col items-center gap-3 p-4 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl hover:border-amber-500 transition-all hover:transform hover:-translate-y-1"
-                onClick={() => handleQuickAction("search")}
-              >
-                <div className="w-12 h-12 bg-amber-500/10 rounded-lg flex items-center justify-center">
-                  <Search size={24} className="text-amber-500" />
-                </div>
-                <span className="text-sm font-medium text-[var(--text-primary)]">Search</span>
-              </button>
+            <div className="section-row">
+              <h2>Quick actions</h2>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.875rem" }}>
+              {quickActions.map(({ key, icon: Icon, label, color, bg }) => (
+                <button
+                  key={key}
+                  onClick={() => handleQuickAction(key)}
+                  style={{
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: "0.625rem",
+                    padding: "1.125rem 0.75rem",
+                    background: "var(--bg-secondary)", border: "1px solid var(--border-color)",
+                    borderRadius: "var(--radius-xl)", cursor: "pointer",
+                    transition: "border-color var(--t-normal), transform var(--t-normal), box-shadow var(--t-normal)",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = color;
+                    (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "var(--shadow-md)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-color)";
+                    (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
+                  }}
+                >
+                  <div style={{ width: 44, height: 44, background: bg, borderRadius: "var(--radius-md)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon size={22} color={color} aria-hidden="true" />
+                  </div>
+                  <span style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--text-primary)" }}>{label}</span>
+                </button>
+              ))}
             </div>
           </section>
 
-          {/* Two Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Recent Activity Timeline */}
+          {/* Activity + Notifications */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.5rem", marginBottom: "2rem" }}>
             <ActivityTimeline activities={activities} loading={loading} />
-            
-            {/* Notifications */}
-            <Notifications 
-              notifications={notifications} 
-              loading={loading}
-              onDismiss={dismissNotification}
-            />
+            <Notifications notifications={notifications} loading={loading} onDismiss={(id) => setNotifications(notifications.filter(n => n.id !== id))} />
           </div>
 
           {/* Recent Uploads */}
           <section className="mb-8">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-[var(--text-primary)]">Recent Uploads</h2>
-              <button
-                className="button ghost text-sm"
-                onClick={() => navigate("/documents")}
-              >
-                View All
+            <div className="section-row">
+              <h2>Recent uploads</h2>
+              <button className="button ghost" style={{ fontSize: "0.875rem" }} onClick={() => navigate("/documents")}>
+                View all
               </button>
             </div>
             {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl p-4 animate-pulse">
-                    <div className="w-12 h-12 bg-[var(--bg-tertiary)] rounded-lg mb-3" />
-                    <div className="h-4 bg-[var(--bg-tertiary)] rounded w-3/4 mb-2" />
-                    <div className="h-3 bg-[var(--bg-tertiary)] rounded w-1/2" />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.875rem" }}>
+                {[1,2,3,4].map(i => (
+                  <div key={i} className="card" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    <div className="skeleton" style={{ width: 48, height: 48, borderRadius: "var(--radius-md)" }} />
+                    <div className="skeleton" style={{ height: 14, width: "75%", borderRadius: 4 }} />
+                    <div className="skeleton" style={{ height: 12, width: "50%", borderRadius: 4 }} />
                   </div>
                 ))}
               </div>
             ) : recentDocuments.length === 0 ? (
-              <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl p-8 text-center">
-                <Files size={48} className="mx-auto text-[var(--text-muted)] mb-3" />
-                <p className="text-[var(--text-secondary)]">No recent uploads</p>
+              <div className="card" style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "2.5rem", gap: "0.75rem", textAlign: "center" }}>
+                <Files size={40} color="var(--text-muted)" aria-hidden="true" />
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>No recent uploads</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.875rem" }}>
                 {recentDocuments.map((doc) => (
                   <div
                     key={doc._id}
-                    className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl p-4 cursor-pointer hover:border-blue-500 transition-all"
+                    className="document-card"
                     onClick={() => navigate(`/documents/${doc._id}`)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === "Enter" && navigate(`/documents/${doc._id}`)}
+                    aria-label={`Open ${doc.title}`}
                   >
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-violet-500 rounded-lg flex items-center justify-center text-white text-xl font-bold">
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                      <div style={{ width: 44, height: 44, background: "linear-gradient(135deg, var(--accent-blue), var(--accent-violet))", borderRadius: "var(--radius-md)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: "1.125rem", flexShrink: 0, fontFamily: "'Manrope', sans-serif" }}>
                         {doc.fileName.charAt(0).toUpperCase()}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--text-primary)] truncate">
-                          {doc.title}
-                        </p>
-                        <p className="text-xs text-[var(--text-muted)] truncate">
-                          {formatBytes(doc.fileSize)}
-                        </p>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p className="truncate" style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--text-primary)" }}>{doc.title}</p>
+                        <p className="truncate" style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{formatBytes(doc.fileSize)}</p>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <span className={`badge ${doc.status === "verified" ? "green" : doc.status === "rejected" ? "red" : "amber"}`}>
                         {doc.status}
                       </span>
-                      {doc.isFavorite && <Star size={16} className="text-amber-500 fill-amber-500" />}
+                      {doc.isFavorite && <Star size={14} color="var(--accent-amber)" fill="var(--accent-amber)" aria-label="Favorited" />}
                     </div>
                   </div>
                 ))}
@@ -323,23 +241,19 @@ export default function Dashboard() {
           </section>
 
           <footer>
-            <span>
-              <ShieldCheck size={15} /> Protected by CertiVault integrity controls
-            </span>
-            <span>ECSoC 2026 · Project Admin</span>
+            <span><ShieldCheck size={14} aria-hidden="true" /> Protected by CertiVault integrity controls</span>
+            <span>© 2026 CertiVault</span>
           </footer>
         </div>
       </main>
-      {uploadOpen && (
-        <UploadModal onClose={() => setUploadOpen(false)} onUploaded={refreshAfterUpload} />
-      )}
+
+      {uploadOpen && <UploadModal onClose={() => setUploadOpen(false)} onUploaded={refreshAfterUpload} />}
       {toast && (
-        <div className="toast">
-          <CheckCircle2 size={18} />
+        <div className="toast" role="status" aria-live="polite">
+          <CheckCircle2 size={16} aria-hidden="true" />
           {toast}
         </div>
       )}
     </div>
   );
 }
-

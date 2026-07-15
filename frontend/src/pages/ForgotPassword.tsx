@@ -1,11 +1,7 @@
-/**
- * Forgot Password Page
- */
-
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { Mail, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
+import { Mail, ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck } from "lucide-react";
 
 const ForgotPassword: React.FC = () => {
   const navigate = useNavigate();
@@ -19,7 +15,6 @@ const ForgotPassword: React.FC = () => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
-
     try {
       await forgotPassword(email);
       setIsSuccess(true);
@@ -32,33 +27,24 @@ const ForgotPassword: React.FC = () => {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h1>
-            <p className="text-gray-600 mb-6">
-              We've sent a password reset link to <strong>{email}</strong>. The link will expire in 1 hour.
-            </p>
-            <div className="space-y-3">
-              <button
-                onClick={() => navigate("/login")}
-                className="w-full bg-indigo-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition"
-              >
-                Back to Login
-              </button>
-              <button
-                onClick={() => {
-                  setIsSuccess(false);
-                  setEmail("");
-                }}
-                className="w-full bg-white border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition"
-              >
-                Try Another Email
-              </button>
-            </div>
+      <div className="auth-page">
+        <div className="auth-card" style={{ textAlign: "center" }}>
+          <div style={{ width: 64, height: 64, background: "rgba(16,185,129,.12)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1.25rem" }}>
+            <CheckCircle2 size={32} color="var(--accent-green)" />
+          </div>
+          <h1 style={{ marginBottom: "0.5rem" }}>Check your email</h1>
+          <p style={{ color: "var(--text-secondary)", marginBottom: "1.75rem", fontSize: "0.9rem" }}>
+            We sent a reset link to <strong>{email}</strong>. It expires in 1 hour.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <button onClick={() => navigate("/login")} className="button primary"
+              style={{ width: "100%", justifyContent: "center", minHeight: "44px" }}>
+              Back to login
+            </button>
+            <button onClick={() => { setIsSuccess(false); setEmail(""); }} className="button ghost"
+              style={{ width: "100%", justifyContent: "center", minHeight: "44px" }}>
+              Try another email
+            </button>
           </div>
         </div>
       </div>
@@ -66,67 +52,48 @@ const ForgotPassword: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <Link
-            to="/login"
-            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Login
-          </Link>
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-brand">
+          <div className="auth-brand-mark"><ShieldCheck size={26} /></div>
+          <h1>Forgot password?</h1>
+          <p>We'll send a reset link to your email</p>
+        </div>
 
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Forgot Password?</h1>
-            <p className="text-gray-600">
-              Enter your email address and we'll send you a link to reset your password.
-            </p>
+        <Link to="/login" style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem", fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "1.25rem" }}>
+          <ArrowLeft size={15} aria-hidden="true" /> Back to login
+        </Link>
+
+        {error && (
+          <div className="auth-error" role="alert">
+            <AlertCircle size={16} aria-hidden="true" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} noValidate style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <div className="field-label">
+            <span>Email address</span>
+            <div className="auth-input-wrapper">
+              <Mail size={16} aria-hidden="true" />
+              <input id="email" name="email" type="email" autoComplete="email" required
+                value={email} onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                className="auth-input" placeholder="you@example.com" />
+            </div>
           </div>
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
+          <button type="submit" disabled={isLoading} className="button primary"
+            style={{ width: "100%", justifyContent: "center", marginTop: "0.25rem", minHeight: "44px" }}>
+            {isLoading ? (
+              <><div className="spinner spinner-sm" aria-hidden="true" />Sending…</>
+            ) : "Send reset link"}
+          </button>
+        </form>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
-                  placeholder="you@example.com"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-indigo-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              {isLoading ? "Sending..." : "Send Reset Link"}
-            </button>
-          </form>
-
-          <p className="mt-8 text-center text-sm text-gray-600">
-            Remember your password?{" "}
-            <Link to="/login" className="text-indigo-600 hover:text-indigo-700 font-medium">
-              Sign in
-            </Link>
-          </p>
-        </div>
+        <p style={{ textAlign: "center", fontSize: "0.875rem", color: "var(--text-secondary)", marginTop: "1.5rem" }}>
+          Remember your password?{" "}
+          <Link to="/login" style={{ color: "var(--accent-blue)", fontWeight: 500 }}>Sign in</Link>
+        </p>
       </div>
     </div>
   );

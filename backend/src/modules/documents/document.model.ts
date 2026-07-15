@@ -215,15 +215,34 @@ DocumentModel.on('index', async (error) => {
   if (error) {
     console.error('Document model index error:', error);
     // Clean up problematic indexes
-    const problematicIndexes = ['id_1', 'storageKey_1'];
+    const problematicIndexes = ['id_1', 'storageKey_1', 'title_text_description_text_tags_text'];
     for (const indexName of problematicIndexes) {
       if (error.message.includes(indexName)) {
         console.log(`Attempting to clean up ${indexName} index...`);
         try {
           await DocumentModel.collection.dropIndex(indexName);
           console.log(`Successfully dropped ${indexName} index`);
+          await DocumentModel.syncIndexes();
+          console.log('Successfully synced indexes after cleanup');
         } catch (dropError) {
-          console.log(`Could not drop ${indexName} index (may not exist):`, dropError.message);
+          console.log(`Could not drop ${indexName} index (may not exist):`, (dropError as any).message);
+        }
+      }
+    }
+
+    // Dynamic cleanup for IndexOptionsConflict / text index conflicts
+    if (error.message.includes('IndexOptionsConflict') || error.message.includes('equivalent index already exists')) {
+      const match = error.message.match(/existing index: \{[^}]*name:\s*["']([^"']+)["']/);
+      if (match && match[1]) {
+        const existingIndexName = match[1];
+        console.log(`Attempting to dynamically clean up conflicting index: ${existingIndexName}...`);
+        try {
+          await DocumentModel.collection.dropIndex(existingIndexName);
+          console.log(`Successfully dropped conflicting index: ${existingIndexName}`);
+          await DocumentModel.syncIndexes();
+          console.log('Successfully synced indexes after dynamic cleanup');
+        } catch (dropError) {
+          console.log(`Could not drop conflicting index ${existingIndexName}:`, (dropError as any).message);
         }
       }
     }
@@ -233,18 +252,39 @@ DocumentModel.on('index', async (error) => {
 // Also attempt to drop problematic indexes on model init (before any operations)
 DocumentModel.init().then(async () => {
   const indexes = await DocumentModel.collection.listIndexes().toArray();
-  const problematicIndexes = ['id_1', 'storageKey_1'];
+  const problematicIndexes = ['id_1', 'storageKey_1', 'title_text_description_text_tags_text'];
+  let dropped = false;
   for (const index of indexes) {
     if (problematicIndexes.includes(index.name)) {
       console.log(`Found problematic index ${index.name}, attempting to drop...`);
       try {
         await DocumentModel.collection.dropIndex(index.name);
         console.log(`Successfully dropped ${index.name} index`);
+        dropped = true;
       } catch (dropError) {
-        console.log(`Could not drop ${index.name}:`, dropError.message);
+        console.log(`Could not drop ${index.name}:`, (dropError as any).message);
       }
     }
   }
-}).catch(err => {
+  if (dropped) {
+    console.log('Syncing indexes after dropping problematic ones...');
+    await DocumentModel.syncIndexes();
+  }
+}).catch(async (err) => {
   console.error('Error initializing DocumentModel:', err);
+  if (err.message.includes('IndexOptionsConflict') || err.message.includes('equivalent index already exists')) {
+    const match = err.message.match(/existing index: \{[^}]*name:\s*["']([^"']+)["']/);
+    if (match && match[1]) {
+      const existingIndexName = match[1];
+      console.log(`Attempting to dynamically clean up conflicting index in init catch: ${existingIndexName}...`);
+      try {
+        await DocumentModel.collection.dropIndex(existingIndexName);
+        console.log(`Successfully dropped conflicting index: ${existingIndexName}`);
+        await DocumentModel.syncIndexes();
+        console.log('Successfully synced indexes after init catch cleanup');
+      } catch (dropError) {
+        console.log(`Could not drop conflicting index ${existingIndexName} in catch:`, (dropError as any).message);
+      }
+    }
+  }
 });

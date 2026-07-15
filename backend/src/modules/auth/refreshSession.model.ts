@@ -68,10 +68,9 @@ const refreshSessionSchema = new Schema<IRefreshSession>(
 refreshSessionSchema.index({ userId: 1, revokedAt: 1 });
 
 // Pre-find middleware to filter out revoked sessions
-refreshSessionSchema.pre("find", function (this: mongoose.QueryWithHelpers<unknown, unknown>, next: (err?: Error) => void) {
+refreshSessionSchema.pre("find", function (this: mongoose.QueryWithHelpers<unknown, unknown>) {
   this.where({ revokedAt: null });
-  next();
-} as mongoose.PreMiddlewareFunction<mongoose.QueryWithHelpers<unknown, unknown>>);
+});
 
 // Instance method: Check if session is expired
 refreshSessionSchema.methods.isExpired = function (): boolean {

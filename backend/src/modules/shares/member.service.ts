@@ -6,7 +6,7 @@ import crypto from "crypto";
 import { SharedMemberModel, ISharedMember, Permission } from "./sharedMember.model.js";
 import { DocumentModel } from "../documents/document.model.js";
 import { AccessLogModel, AccessAction } from "./accessLog.model.js";
-import { ApiError } from "../../utils/apiError.js";
+import { ApiError } from "../../utils/ApiError.js";
 
 interface InviteMemberInput {
   documentId: string;

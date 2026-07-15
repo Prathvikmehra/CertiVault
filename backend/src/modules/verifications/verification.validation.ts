@@ -22,20 +22,14 @@ const VERIFICATION_RESULT_VALUES = ["success", "failure", "mismatch"] as const;
 
 // Verify document schema
 export const verifyDocumentSchema = z.object({
-  status: z.enum(["verified", "rejected"], {
-    errorMap: () => ({ message: "Invalid verification status" }),
-  }),
-  method: z.enum(VERIFICATION_METHOD_VALUES_STRICT, {
-    errorMap: () => ({ message: "Invalid verification method" }),
-  }).default("manual"),
+  status: z.enum(["verified", "rejected"] as ["verified", "rejected"]),
+  method: z.enum(VERIFICATION_METHOD_VALUES_STRICT as unknown as ["manual", "qr", "public", "hash", "api"]),
   notes: z.string().max(500, "Notes cannot exceed 500 characters").optional(),
 });
 
 // Re-verify document schema
 export const reverifyDocumentSchema = z.object({
-  method: z.enum(VERIFICATION_METHOD_VALUES_STRICT, {
-    errorMap: () => ({ message: "Invalid verification method" }),
-  }).default("manual"),
+  method: z.enum(VERIFICATION_METHOD_VALUES_STRICT as unknown as ["manual", "qr", "public", "hash", "api"]),
   notes: z.string().max(500, "Notes cannot exceed 500 characters").optional(),
 });
 

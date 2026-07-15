@@ -28,26 +28,42 @@ passport.use(
         let user = await User.findOne({ googleId: profile.id });
 
         if (user) {
-          // User exists - update profile info
-          user.name = profile.displayName;
-          user.avatar = profile.photos?.[0]?.value || user.avatar;
-          user.isEmailVerified = true; // Google accounts are verified
-          await user.save();
-          return done(null, user);
+          // User exists — update profile info without triggering pre-save password hook
+          const updated = await User.findByIdAndUpdate(
+            user._id,
+            {
+              $set: {
+                name: profile.displayName,
+                avatar: profile.photos?.[0]?.value || user.avatar,
+                isEmailVerified: true,
+                lastLoginAt: new Date(),
+              },
+            },
+            { new: true }
+          );
+          return done(null, updated || user);
         }
 
         // Check if user exists with the same email
         const existingUser = await User.findOne({ email: profile.emails?.[0]?.value });
 
         if (existingUser) {
-          // Link Google account to existing user
-          existingUser.googleId = profile.id;
-          existingUser.provider = "google";
-          existingUser.providerId = profile.id;
-          existingUser.avatar = profile.photos?.[0]?.value || existingUser.avatar;
-          existingUser.isEmailVerified = true;
-          await existingUser.save();
-          return done(null, existingUser);
+          // Link Google account to existing user without triggering pre-save hook
+          const updated = await User.findByIdAndUpdate(
+            existingUser._id,
+            {
+              $set: {
+                googleId: profile.id,
+                provider: "google",
+                providerId: profile.id,
+                avatar: profile.photos?.[0]?.value || existingUser.avatar,
+                isEmailVerified: true,
+                lastLoginAt: new Date(),
+              },
+            },
+            { new: true }
+          );
+          return done(null, updated || existingUser);
         }
 
         // Create new user

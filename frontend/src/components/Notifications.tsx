@@ -1,14 +1,14 @@
-import { Notification } from "../types.js";
-import { Info, CheckCircle, AlertTriangle, X, FileText } from "lucide-react";
+import { AppNotification } from "../types.js";
+import { Info, CheckCircle, AlertTriangle, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface NotificationsProps {
-  notifications: Notification[];
+  notifications: AppNotification[];
   loading?: boolean;
   onDismiss?: (id: string) => void;
 }
 
-const getNotificationIcon = (type: Notification["type"]) => {
+const getNotificationIcon = (type: AppNotification["type"]) => {
   switch (type) {
     case "info":
       return Info;
@@ -23,7 +23,7 @@ const getNotificationIcon = (type: Notification["type"]) => {
   }
 };
 
-const getNotificationColor = (type: Notification["type"]) => {
+const getNotificationColor = (type: AppNotification["type"]) => {
   switch (type) {
     case "info":
       return "text-blue-500";
@@ -38,7 +38,7 @@ const getNotificationColor = (type: Notification["type"]) => {
   }
 };
 
-const getNotificationBg = (type: Notification["type"]) => {
+const getNotificationBg = (type: AppNotification["type"]) => {
   switch (type) {
     case "info":
       return "bg-blue-500/10 border-blue-500/20";
@@ -71,7 +71,7 @@ const formatRelativeTime = (timestamp: string) => {
 export function Notifications({ notifications, loading, onDismiss }: NotificationsProps) {
   const navigate = useNavigate();
 
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = (notification: AppNotification) => {
     if (notification.documentId) {
       navigate(`/documents/${notification.documentId}`);
     }
@@ -126,7 +126,7 @@ export function Notifications({ notifications, loading, onDismiss }: Notificatio
               onClick={() => handleNotificationClick(notification)}
             >
               <div className="flex gap-3 items-start">
-                <Icon size={18} className={colorClass} flex-shrink-0 mt-0.5" />
+                <Icon size={18} className={colorClass} style={{ flexShrink: 0, marginTop: 2 }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-[var(--text-primary)]">
                     {notification.title}

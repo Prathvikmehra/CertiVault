@@ -1,11 +1,7 @@
-/**
- * Verify Email Page
- */
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { Mail, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
+import { Mail, CheckCircle2, AlertCircle, RefreshCw, ShieldCheck } from "lucide-react";
 
 const VerifyEmail: React.FC = () => {
   const navigate = useNavigate();
@@ -16,42 +12,43 @@ const VerifyEmail: React.FC = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [token, setToken] = useState("");
   const [isResending, setIsResending] = useState(false);
+  const [resendEmail, setResendEmail] = useState("");
+  const [showResendForm, setShowResendForm] = useState(false);
 
   useEffect(() => {
-    const tokenParam = searchParams.get("token");
-    if (!tokenParam) {
-      setError("Invalid or missing verification token");
+    const t = searchParams.get("token");
+    if (!t) {
+      setError("No verification token found in the link.");
     } else {
-      setToken(tokenParam);
-      // Auto-verify if token is present
-      handleVerify(tokenParam);
+      setToken(t);
+      handleVerify(t);
     }
-  }, [searchParams]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleVerify = async (verificationToken: string) => {
+  const handleVerify = async (t: string) => {
     setIsLoading(true);
     setError("");
-
     try {
-      await verifyEmail(verificationToken);
+      await verifyEmail(t);
       setIsSuccess(true);
     } catch (err: any) {
-      setError(err.message || "Failed to verify email. Please try again.");
+      setError(err.message || "Verification failed. The link may have expired.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleResend = async () => {
-    const email = prompt("Enter your email address to resend verification email:");
-    if (!email) return;
-
+  const handleResend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resendEmail) return;
     setIsResending(true);
     setError("");
-
     try {
-      await resendVerificationEmail(email);
-      alert("Verification email has been sent. Please check your inbox.");
+      await resendVerificationEmail(resendEmail);
+      setError("");
+      setShowResendForm(false);
+      alert("Verification email sent — check your inbox.");
     } catch (err: any) {
       setError(err.message || "Failed to resend verification email.");
     } finally {
@@ -61,105 +58,92 @@ const VerifyEmail: React.FC = () => {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Email Verified!</h1>
-            <p className="text-gray-600 mb-6">
-              Your email has been successfully verified. You can now access all features of CertiVault.
-            </p>
-            <button
-              onClick={() => navigate("/dashboard")}
-              className="w-full bg-indigo-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition"
-            >
-              Go to Dashboard
-            </button>
+      <div className="auth-page">
+        <div className="auth-card" style={{ textAlign: "center" }}>
+          <div style={{ width: 64, height: 64, background: "rgba(16,185,129,.12)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1.25rem" }}>
+            <CheckCircle2 size={32} color="var(--accent-green)" />
           </div>
+          <h1 style={{ marginBottom: "0.5rem" }}>Email verified!</h1>
+          <p style={{ color: "var(--text-secondary)", marginBottom: "1.75rem", fontSize: "0.9rem" }}>
+            Your email has been verified. You can now access all CertiVault features.
+          </p>
+          <button onClick={() => navigate("/dashboard")} className="button primary"
+            style={{ width: "100%", justifyContent: "center", minHeight: "44px" }}>
+            Go to dashboard
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Mail className="w-8 h-8 text-indigo-600" />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Verify Your Email</h1>
-            <p className="text-gray-600">
-              {isLoading ? "Verifying your email address..." : "Please wait while we verify your email"}
-            </p>
-          </div>
+    <div className="auth-page">
+      <div className="auth-card" style={{ textAlign: "center" }}>
+        <div className="auth-brand">
+          <div className="auth-brand-mark"><ShieldCheck size={26} /></div>
+          <h1>Verify your email</h1>
+          <p>{isLoading ? "Verifying your email address…" : "Please wait while we verify your email"}</p>
+        </div>
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm text-red-700 mb-2">{error}</p>
-                <button
-                  onClick={handleResend}
-                  disabled={isResending}
-                  className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
-                >
-                  {isResending ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    "Resend verification email"
-                  )}
+        {isLoading && (
+          <div style={{ display: "flex", justifyContent: "center", padding: "1.5rem 0" }}>
+            <div className="spinner" aria-label="Verifying…" />
+          </div>
+        )}
+
+        {error && (
+          <div className="auth-error" role="alert" style={{ textAlign: "left" }}>
+            <AlertCircle size={16} aria-hidden="true" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {!isLoading && !token && !showResendForm && (
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", marginBottom: "1.25rem" }}>
+            Check your email for the verification link, or request a new one below.
+          </p>
+        )}
+
+        {!isLoading && !isSuccess && (
+          <>
+            {showResendForm ? (
+              <form onSubmit={handleResend} style={{ display: "flex", flexDirection: "column", gap: "0.875rem", marginTop: "1rem" }}>
+                <div className="field-label" style={{ textAlign: "left" }}>
+                  <span>Your email address</span>
+                  <div className="auth-input-wrapper">
+                    <Mail size={16} aria-hidden="true" />
+                    <input type="email" required value={resendEmail}
+                      onChange={(e) => setResendEmail(e.target.value)}
+                      className="auth-input" placeholder="you@example.com" />
+                  </div>
+                </div>
+                <button type="submit" disabled={isResending} className="button primary"
+                  style={{ width: "100%", justifyContent: "center", minHeight: "44px" }}>
+                  {isResending
+                    ? <><div className="spinner spinner-sm" aria-hidden="true" />Sending…</>
+                    : <><RefreshCw size={16} />Resend verification</>}
+                </button>
+                <button type="button" className="button ghost"
+                  style={{ width: "100%", justifyContent: "center", minHeight: "44px" }}
+                  onClick={() => setShowResendForm(false)}>
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1rem" }}>
+                <button onClick={() => setShowResendForm(true)} className="button secondary"
+                  style={{ width: "100%", justifyContent: "center", minHeight: "44px" }}>
+                  <RefreshCw size={16} />Resend verification email
                 </button>
               </div>
-            </div>
-          )}
+            )}
+          </>
+        )}
 
-          {isLoading && (
-            <div className="flex justify-center">
-              <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-            </div>
-          )}
-
-          {!isLoading && !token && (
-            <div className="text-center">
-              <p className="text-gray-600 mb-4">
-                No verification token found. Please check your email for the verification link or request a new one.
-              </p>
-              <button
-                onClick={handleResend}
-                disabled={isResending}
-                className="w-full bg-indigo-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
-              >
-                {isResending ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-5 h-5" />
-                    Resend Verification Email
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <button
-              onClick={() => navigate("/login")}
-              className="w-full text-gray-600 hover:text-gray-900 font-medium transition"
-            >
-              Back to Login
-            </button>
-          </div>
-        </div>
+        <button onClick={() => navigate("/login")} className="button ghost"
+          style={{ width: "100%", justifyContent: "center", minHeight: "44px", marginTop: "0.75rem" }}>
+          Back to login
+        </button>
       </div>
     </div>
   );

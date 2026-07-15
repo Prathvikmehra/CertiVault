@@ -61,7 +61,7 @@ export interface Activity {
   details?: string;
 }
 
-export interface Notification {
+export interface AppNotification {
   id: string;
   type: "info" | "success" | "warning" | "error";
   title: string;

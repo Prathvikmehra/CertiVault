@@ -98,8 +98,8 @@ export const markAllAsReadController = async (req: Request, res: Response, next:
     const result = await markAllAsRead(userId);
 
     res.json({
-      success: true,
       ...result,
+      success: true,
       message: "All notifications marked as read",
     });
   } catch (error) {
@@ -123,8 +123,8 @@ export const deleteNotificationController = async (req: Request, res: Response, 
     const result = await deleteNotification(notificationIdStr, userId);
 
     res.json({
-      success: true,
       ...result,
+      success: true,
     });
   } catch (error) {
     next(error);
@@ -144,8 +144,8 @@ export const deleteReadNotificationsController = async (req: Request, res: Respo
     const result = await deleteReadNotifications(userId);
 
     res.json({
-      success: true,
       ...result,
+      success: true,
       message: "Read notifications deleted",
     });
   } catch (error) {
@@ -166,8 +166,8 @@ export const deleteAllNotificationsController = async (req: Request, res: Respon
     const result = await deleteAllNotifications(userId);
 
     res.json({
-      success: true,
       ...result,
+      success: true,
       message: "All notifications deleted",
     });
   } catch (error) {

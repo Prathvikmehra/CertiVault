@@ -81,8 +81,8 @@ export const changePasswordController = async (req: Request, res: Response, next
     const result = await changePassword(userId, { currentPassword, newPassword });
 
     res.json({
-      success: true,
       ...result,
+      success: true,
     });
   } catch (error) {
     next(error);
@@ -108,8 +108,8 @@ export const updateEmailController = async (req: Request, res: Response, next: N
     const result = await updateEmail(userId, { newEmail, password });
 
     res.json({
-      success: true,
       ...result,
+      success: true,
     });
   } catch (error) {
     next(error);
@@ -159,8 +159,8 @@ export const deleteAccountController = async (req: Request, res: Response, next:
     const result = await deleteAccount(userId, { password, confirmation });
 
     res.json({
-      success: true,
       ...result,
+      success: true,
     });
   } catch (error) {
     next(error);
@@ -225,8 +225,8 @@ export const revokeAllSessionsController = async (req: Request, res: Response, n
     const result = await revokeAllSessions(userId, currentSessionId);
 
     res.json({
-      success: true,
       ...result,
+      success: true,
     });
   } catch (error) {
     next(error);
@@ -249,8 +249,8 @@ export const revokeSessionController = async (req: Request, res: Response, next:
     const result = await revokeSession(userId, sessionIdStr);
 
     res.json({
-      success: true,
       ...result,
+      success: true,
     });
   } catch (error) {
     next(error);

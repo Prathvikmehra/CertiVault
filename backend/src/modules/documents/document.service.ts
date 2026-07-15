@@ -13,6 +13,7 @@ import {
   validateFileType,
   getFileCategory,
   sanitizeFilename,
+  StorageProvider,
 } from "./s3.service.js";
 import { ApiError } from "../../utils/ApiError.js";
 import { getExtensionFromMimeType, validateFileSize } from "./document.validation.js";
@@ -151,6 +152,9 @@ export const getDocuments = async (input: GetDocumentsInput) => {
     isArchived,
     sortBy,
     ownerId,
+    owner,
+    startDate,
+    endDate,
   } = input;
 
   const skip = (page - 1) * limit;
@@ -576,7 +580,7 @@ export const getDocumentDownloadUrl = async (
 
   return await getPresignedDownloadUrl(
     document.storageKey,
-    document.storageProvider,
+    document.storageProvider as StorageProvider,
     document.fileName
   );
 };
@@ -651,8 +655,8 @@ export const getActivityTimeline = async (ownerId: string, limit = 20) => {
         type: "verify",
         documentId: docObj._id.toString(),
         documentTitle: docObj.title,
-        userId: docObj.verifiedBy || ownerId,
-        userName: docObj.verifiedBy || docObj.ownerName,
+        userId: (docObj.verifiedBy || ownerId).toString(),
+        userName: docObj.verifiedBy ? docObj.verifiedBy.toString() : docObj.ownerName,
         timestamp: docObj.verifiedAt.toISOString(),
         details: `Verified as ${docObj.status}`,
       });
@@ -665,8 +669,8 @@ export const getActivityTimeline = async (ownerId: string, limit = 20) => {
         type: "archive",
         documentId: docObj._id.toString(),
         documentTitle: docObj.title,
-        userId: docObj.archivedBy || ownerId,
-        userName: docObj.archivedBy || docObj.ownerName,
+        userId: (docObj.archivedBy || ownerId).toString(),
+        userName: docObj.archivedBy ? docObj.archivedBy.toString() : docObj.ownerName,
         timestamp: docObj.archivedAt.toISOString(),
         details: "Archived document",
       });

@@ -216,8 +216,8 @@ export const deleteAccount = async (userId: string, data: {
   user.isActive = false;
   user.email = `deleted_${user._id}@certi-vault.com`;
   user.name = "Deleted User";
-  user.avatar = null;
-  user.bio = null;
+  user.avatar = undefined;
+  user.bio = undefined;
   
   await user.save();
 

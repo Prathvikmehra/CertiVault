@@ -70,7 +70,6 @@ const sharedDocumentSchema = new Schema<ISharedDocument>(
     },
     expiresAt: {
       type: Date,
-      index: true,
     },
     maxAccessCount: {
       type: Number,

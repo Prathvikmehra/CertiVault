@@ -100,7 +100,6 @@ const sharedMemberSchema = new Schema<ISharedMember>(
     },
     expiresAt: {
       type: Date,
-      index: true,
     },
     isActive: {
       type: Boolean,

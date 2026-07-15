@@ -1,16 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Archive,
-  ArchiveRestore,
-  CheckCircle2,
-  Files,
-  Filter,
-  Grid3x3,
-  List,
-  ShieldCheck,
-  Upload,
-  X,
+  Archive, ArchiveRestore, CheckCircle2, Files,
+  Filter, Grid3x3, List, ShieldCheck, Upload, X, Star,
 } from "lucide-react";
 import { api } from "../api.js";
 import { Document, Summary } from "../types.js";
@@ -18,14 +10,14 @@ import { Sidebar } from "../components/Sidebar.js";
 import { Topbar } from "../components/Topbar.js";
 import { UploadModal } from "../components/UploadModal.js";
 import { DocumentPreviewModal } from "../components/DocumentPreviewModal.js";
-import { ShareModal } from "../components/ShareModal.js";
+import ShareModal from "../components/ShareModal.js";
 import { DocumentCardSkeleton, TableSkeleton } from "../components/SkeletonLoader.js";
 
 const formatBytes = (bytes?: number) => {
-  if (!bytes) return "0 MB";
+  if (!bytes) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** index).toFixed(index > 1 ? 1 : 0)} ${units[index]}`;
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** i).toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
 };
 
 export default function Documents() {
@@ -58,199 +50,108 @@ export default function Documents() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [documentResponse, summaryResponse] = await Promise.all([
+      const [docRes, sumRes] = await Promise.all([
         api.getDocuments({ search, status, category, isFavorite, isArchived, sortBy, startDate, endDate, owner, page, limit: 24 }),
         api.getDocumentSummary(),
       ]);
-      setDocuments(documentResponse.documents);
-      setSummary(summaryResponse.data);
-      setFilteredTotal(documentResponse.total);
-      setTotalPages(documentResponse.totalPages);
-    } catch (error: any) {
-      console.error("Failed to load documents:", error);
-      setToast(error.message || "Failed to load documents");
+      setDocuments(docRes.documents);
+      setSummary(sumRes.data);
+      setFilteredTotal(docRes.total);
+      setTotalPages(docRes.totalPages);
+    } catch (err: any) {
+      setToast(err.message || "Failed to load documents");
     } finally {
       setLoading(false);
     }
   }, [search, status, category, isFavorite, isArchived, sortBy, startDate, endDate, owner, page]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
+  useEffect(() => { load(); }, [load]);
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(() => setToast(""), 3500);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => setToast(""), 3500);
+    return () => clearTimeout(t);
   }, [toast]);
 
-  const refreshAfterUpload = async () => {
-    setUploadOpen(false);
-    setToast("Document uploaded successfully.");
-    await load();
-  };
-
-
+  const refreshAfterUpload = async () => { setUploadOpen(false); setToast("Document uploaded."); await load(); };
   const remove = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this document? This action cannot be undone.")) return;
-    try {
-      await api.deleteDocument(id);
-      setToast("Document deleted successfully.");
-      await load();
-    } catch (error: any) {
-      setToast(error.message || "Failed to delete document");
-    }
+    if (!confirm("Delete this document? This cannot be undone.")) return;
+    try { await api.deleteDocument(id); setToast("Document deleted."); await load(); } catch (err: any) { setToast(err.message || "Delete failed"); }
   };
-
   const archive = async (id: string) => {
-    try {
-      await api.archiveDocument(id);
-      setToast("Document archived successfully.");
-      await load();
-    } catch (error: any) {
-      setToast(error.message || "Failed to archive document");
-    }
+    try { await api.archiveDocument(id); setToast("Document archived."); await load(); } catch (err: any) { setToast(err.message || "Archive failed"); }
   };
-
   const restore = async (id: string) => {
+    try { await api.restoreDocument(id); setToast("Document restored."); await load(); } catch (err: any) { setToast(err.message || "Restore failed"); }
+  };
+  const toggleFavorite = async (id: string, cur: boolean) => {
+    setDocuments(d => d.map(doc => doc._id === id ? { ...doc, isFavorite: !cur } : doc));
     try {
-      await api.restoreDocument(id);
-      setToast("Document restored successfully.");
-      await load();
-    } catch (error: any) {
-      setToast(error.message || "Failed to restore document");
+      if (cur) await api.unfavoriteDocument(id); else await api.favoriteDocument(id);
+      setToast(cur ? "Removed from favorites" : "Added to favorites");
+    } catch (err: any) {
+      setDocuments(d => d.map(doc => doc._id === id ? { ...doc, isFavorite: cur } : doc));
+      setToast(err.message || "Update failed");
     }
   };
-
-  const toggleFavorite = async (id: string, isFavorite: boolean) => {
-    // Optimistic update
-    setDocuments(prevDocs => 
-      prevDocs.map(doc => 
-        doc._id === id 
-          ? { ...doc, isFavorite: !isFavorite, favoritedAt: !isFavorite ? new Date().toISOString() : undefined }
-          : doc
-      )
-    );
-
-    try {
-      if (isFavorite) {
-        await api.unfavoriteDocument(id);
-        setToast("Removed from favorites");
-      } else {
-        await api.favoriteDocument(id);
-        setToast("Added to favorites");
-      }
-    } catch (error: any) {
-      // Revert on error
-      setDocuments(prevDocs => 
-        prevDocs.map(doc => 
-          doc._id === id 
-            ? { ...doc, isFavorite, favoritedAt: isFavorite ? doc.favoritedAt : undefined }
-            : doc
-        )
-      );
-      setToast(error.message || "Failed to update favorite");
-    }
-  };
-
-
-
   const download = async (id: string) => {
-    try {
-      await api.downloadDocument(id);
-      setToast("Download started.");
-    } catch (error: any) {
-      setToast(error.message || "Failed to download document");
-    }
+    try { await api.downloadDocument(id); setToast("Download started."); } catch (err: any) { setToast(err.message || "Download failed"); }
   };
-
-  const viewPreview = (document: Document) => {
-    setPreviewDocument(document);
-    setPreviewOpen(true);
-  };
-
-  const openShare = (document: Document) => {
-    setShareDocument(document);
-    setShareOpen(true);
-  };
-
-  const viewVerification = (id: string) => {
-    navigate(`/verification/${id}`);
-  };
-
-  const clearFilters = () => {
-    setStatus("all");
-    setCategory("all");
-    setIsFavorite(undefined);
-    setIsArchived(undefined);
-    setStartDate("");
-    setEndDate("");
-    setOwner("all");
-    setSearch("");
-    setPage(1);
-  };
-
+  const clearFilters = () => { setStatus("all"); setCategory("all"); setIsFavorite(undefined); setIsArchived(undefined); setStartDate(""); setEndDate(""); setOwner("all"); setSearch(""); setPage(1); };
   const hasActiveFilters = status !== "all" || category !== "all" || isFavorite !== undefined || isArchived !== undefined || search !== "" || startDate !== "" || endDate !== "" || owner !== "all";
+
+  const DocIcon = ({ doc, size = 48 }: { doc: Document; size?: number }) => (
+    doc.thumbnailUrl
+      ? <img src={doc.thumbnailUrl} alt="" style={{ width: size, height: size, borderRadius: "var(--radius-md)", objectFit: "cover", flexShrink: 0 }}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+      : <div style={{ width: size, height: size, background: "linear-gradient(135deg, var(--accent-blue), var(--accent-violet))", borderRadius: "var(--radius-md)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: size * 0.4, flexShrink: 0, fontFamily: "'Manrope', sans-serif" }}>
+          {doc.fileName.charAt(0).toUpperCase()}
+        </div>
+  );
 
   return (
     <div className="app-shell">
       <Sidebar mobileNav={mobileNav} summary={summary} />
-      {mobileNav && (
-        <button
-          className="mobile-overlay"
-          onClick={() => setMobileNav(false)}
-          aria-label="Close menu"
-        />
-      )}
+      {mobileNav && <button className="mobile-overlay" onClick={() => setMobileNav(false)} aria-label="Close navigation" />}
       <main>
         <Topbar search={search} setSearch={setSearch} setMobileNav={setMobileNav} />
         <div className="content">
+
+          {/* Hero */}
           <section className="hero-row">
             <div>
-              <p className="eyebrow">DOCUMENTS</p>
+              <p className="eyebrow">Documents</p>
               <h1>My Documents</h1>
               <p>Manage and organize your secure documents.</p>
             </div>
-            <div className="flex gap-3">
-              <button
-                className="button secondary"
-                onClick={() => setShowFilters(!showFilters)}
-              >
-                <Filter size={18} /> Filters {hasActiveFilters && <span className="ml-2 px-2 py-0.5 bg-blue-500 rounded-full text-xs">Active</span>}
+            <div style={{ display: "flex", gap: "0.625rem", flexShrink: 0 }}>
+              <button className="button secondary" onClick={() => setShowFilters(!showFilters)}>
+                <Filter size={16} aria-hidden="true" />
+                Filters
+                {hasActiveFilters && <span className="filter-active-chip">Active</span>}
               </button>
-              <button
-                className="button primary upload-button"
-                onClick={() => setUploadOpen(true)}
-              >
-                <Upload size={18} /> Upload
+              <button className="button primary upload-button" onClick={() => setUploadOpen(true)}>
+                <Upload size={16} aria-hidden="true" /> Upload
               </button>
             </div>
           </section>
 
+          {/* Filters */}
           {showFilters && (
-            <div className="mb-6 p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-color)]">
-              <div className="flex gap-4 flex-wrap items-end">
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium mb-2 text-[var(--text-primary)]">Status</label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    <option value="all">All Status</option>
+            <div className="filter-panel">
+              <div className="filter-grid">
+                <div className="filter-field">
+                  <label htmlFor="f-status">Status</label>
+                  <select id="f-status" value={status} onChange={e => setStatus(e.target.value)}>
+                    <option value="all">All statuses</option>
                     <option value="pending">Pending</option>
                     <option value="verified">Verified</option>
                     <option value="rejected">Rejected</option>
                   </select>
                 </div>
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium mb-2 text-[var(--text-primary)]">Category</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    <option value="all">All Categories</option>
+                <div className="filter-field">
+                  <label htmlFor="f-category">Category</label>
+                  <select id="f-category" value={category} onChange={e => setCategory(e.target.value)}>
+                    <option value="all">All categories</option>
                     <option value="certificate">Certificate</option>
                     <option value="contract">Contract</option>
                     <option value="identity">Identity</option>
@@ -259,242 +160,138 @@ export default function Documents() {
                     <option value="other">Other</option>
                   </select>
                 </div>
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium mb-2 text-[var(--text-primary)]">Favorites</label>
-                  <select
-                    value={isFavorite === undefined ? "all" : isFavorite.toString()}
-                    onChange={(e) => setIsFavorite(e.target.value === "all" ? undefined : e.target.value === "true")}
-                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    <option value="all">All Documents</option>
-                    <option value="true">Favorites Only</option>
-                    <option value="false">Non-Favorites</option>
+                <div className="filter-field">
+                  <label htmlFor="f-fav">Favorites</label>
+                  <select id="f-fav" value={isFavorite === undefined ? "all" : String(isFavorite)} onChange={e => setIsFavorite(e.target.value === "all" ? undefined : e.target.value === "true")}>
+                    <option value="all">All documents</option>
+                    <option value="true">Favorites only</option>
+                    <option value="false">Non-favorites</option>
                   </select>
                 </div>
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium mb-2 text-[var(--text-primary)]">Sort By</label>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                    <option value="title_asc">Title (A-Z)</option>
-                    <option value="title_desc">Title (Z-A)</option>
-                    <option value="size_asc">Size (Smallest)</option>
-                    <option value="size_desc">Size (Largest)</option>
+                <div className="filter-field">
+                  <label htmlFor="f-archived">Archived</label>
+                  <select id="f-archived" value={isArchived === undefined ? "all" : String(isArchived)} onChange={e => setIsArchived(e.target.value === "all" ? undefined : e.target.value === "true")}>
+                    <option value="all">All documents</option>
+                    <option value="false">Active only</option>
+                    <option value="true">Archived only</option>
                   </select>
                 </div>
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium mb-2 text-[var(--text-primary)]">Archived</label>
-                  <select
-                    value={isArchived === undefined ? "all" : isArchived.toString()}
-                    onChange={(e) => setIsArchived(e.target.value === "all" ? undefined : e.target.value === "true")}
-                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    <option value="all">All Documents</option>
-                    <option value="false">Active Only</option>
-                    <option value="true">Archived Only</option>
+                <div className="filter-field">
+                  <label htmlFor="f-sort">Sort by</label>
+                  <select id="f-sort" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+                    <option value="newest">Newest first</option>
+                    <option value="oldest">Oldest first</option>
+                    <option value="title_asc">Title A–Z</option>
+                    <option value="title_desc">Title Z–A</option>
+                    <option value="size_asc">Smallest first</option>
+                    <option value="size_desc">Largest first</option>
                   </select>
                 </div>
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium mb-2 text-[var(--text-primary)]">From Date</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  />
+                <div className="filter-field">
+                  <label htmlFor="f-from">From date</label>
+                  <input id="f-from" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
                 </div>
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium mb-2 text-[var(--text-primary)]">To Date</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  />
+                <div className="filter-field">
+                  <label htmlFor="f-to">To date</label>
+                  <input id="f-to" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
                 </div>
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium mb-2 text-[var(--text-primary)]">Owner</label>
-                  <select
-                    value={owner}
-                    onChange={(e) => setOwner(e.target.value)}
-                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    <option value="all">All Owners</option>
-                    <option value="me">My Documents</option>
+                <div className="filter-field">
+                  <label htmlFor="f-owner">Owner</label>
+                  <select id="f-owner" value={owner} onChange={e => setOwner(e.target.value)}>
+                    <option value="all">All owners</option>
+                    <option value="me">Mine only</option>
                   </select>
                 </div>
                 {hasActiveFilters && (
-                  <button
-                    className="button ghost px-4 py-3"
-                    onClick={clearFilters}
-                  >
-                    <X size={16} /> Clear
-                  </button>
+                  <div className="filter-field" style={{ justifyContent: "flex-end" }}>
+                    <button className="button ghost" onClick={clearFilters} style={{ alignSelf: "flex-end" }}>
+                      <X size={15} aria-hidden="true" /> Clear filters
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
           )}
 
-          <div className="flex justify-between items-center mb-4">
-            <p className="text-[var(--text-secondary)] text-sm">
-              {documents.length} of {filteredTotal} documents
+          {/* Toolbar */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+            <p style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>
+              {loading ? "Loading…" : `${documents.length} of ${filteredTotal} document${filteredTotal !== 1 ? "s" : ""}`}
             </p>
-            <div className="flex gap-2">
+            <div style={{ display: "flex", gap: "0.25rem" }}>
               <button
-                className={`icon-button w-9 h-9 ${viewMode === "grid" ? "bg-[var(--bg-tertiary)]" : "bg-transparent"}`}
+                className={`icon-button${viewMode === "grid" ? " view-btn-active" : ""}`}
                 onClick={() => setViewMode("grid")}
+                aria-label="Grid view" aria-pressed={viewMode === "grid"}
+                style={{ width: 34, height: 34 }}
               >
-                <Grid3x3 size={18} />
+                <Grid3x3 size={16} />
               </button>
               <button
-                className={`icon-button w-9 h-9 ${viewMode === "list" ? "bg-[var(--bg-tertiary)]" : "bg-transparent"}`}
+                className={`icon-button${viewMode === "list" ? " view-btn-active" : ""}`}
                 onClick={() => setViewMode("list")}
+                aria-label="List view" aria-pressed={viewMode === "list"}
+                style={{ width: 34, height: 34 }}
               >
-                <List size={18} />
+                <List size={16} />
               </button>
             </div>
           </div>
 
+          {/* Content */}
           {loading ? (
             viewMode === "grid" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                <DocumentCardSkeleton />
-                <DocumentCardSkeleton />
-                <DocumentCardSkeleton />
-                <DocumentCardSkeleton />
-                <DocumentCardSkeleton />
-                <DocumentCardSkeleton />
-                <DocumentCardSkeleton />
-                <DocumentCardSkeleton />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1.25rem" }}>
+                {Array.from({ length: 8 }).map((_, i) => <DocumentCardSkeleton key={i} />)}
               </div>
             ) : (
               <div className="table-container">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Document</th>
-                      <th>Category</th>
-                      <th>Size</th>
-                      <th>Status</th>
-                      <th>Uploaded</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <TableSkeleton rows={8} />
-                  </tbody>
-                </table>
+                <table><thead><tr><th>Document</th><th>Category</th><th>Size</th><th>Status</th><th>Uploaded</th><th>Actions</th></tr></thead>
+                <tbody><TableSkeleton rows={8} /></tbody></table>
               </div>
             )
           ) : documents.length === 0 ? (
             <div className="empty-state">
-              <Files size={64} />
+              <Files size={56} />
               {hasActiveFilters ? (
-                <>
-                  <h3>No documents match your filters</h3>
-                  <p>Try adjusting your filters or search terms.</p>
-                  <button className="button primary" onClick={clearFilters}>
-                    <X size={18} /> Clear Filters
-                  </button>
-                </>
+                <><h3>No results for these filters</h3><p>Try adjusting or clearing your filters.</p>
+                  <button className="button primary" onClick={clearFilters}><X size={16} /> Clear filters</button></>
               ) : (
-                <>
-                  <h3>No documents found</h3>
-                  <p>Upload your first document to get started.</p>
-                  <button className="button primary" onClick={() => setUploadOpen(true)}>
-                    <Upload size={18} /> Upload Document
-                  </button>
-                </>
+                <><h3>No documents yet</h3><p>Upload your first document to get started.</p>
+                  <button className="button primary" onClick={() => setUploadOpen(true)}><Upload size={16} /> Upload document</button></>
               )}
             </div>
           ) : viewMode === "grid" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {documents.map((doc) => (
-                <div
-                  key={doc._id}
-                  className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl p-5 cursor-pointer transition-all duration-200 hover:border-blue-500"
-                  onClick={() => viewPreview(doc)}
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    {doc.thumbnailUrl ? (
-                      <img 
-                        src={doc.thumbnailUrl} 
-                        alt={doc.title}
-                        className="w-12 h-12 rounded-lg object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                        }}
-                      />
-                    ) : null}
-                    <div className={`w-12 h-12 bg-gradient-to-br from-blue-500 to-violet-500 rounded-lg flex items-center justify-center text-white text-2xl font-bold ${doc.thumbnailUrl ? 'hidden' : ''}`}>
-                      {doc.fileName.charAt(0).toUpperCase()}
-                    </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1.25rem" }}>
+              {documents.map(doc => (
+                <div key={doc._id} className="document-card" onClick={() => { setPreviewDocument(doc); setPreviewOpen(true); }}
+                  role="button" tabIndex={0} onKeyDown={e => e.key === "Enter" && (() => { setPreviewDocument(doc); setPreviewOpen(true); })()}
+                  aria-label={`Open ${doc.title}`}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+                    <DocIcon doc={doc} size={44} />
                     <button
-                      className="icon-button w-8 h-8"
-                      onClick={(e) => { e.stopPropagation(); toggleFavorite(doc._id, doc.isFavorite); }}
+                      className="icon-button" style={{ width: 30, height: 30 }}
+                      onClick={e => { e.stopPropagation(); toggleFavorite(doc._id, doc.isFavorite); }}
+                      aria-label={doc.isFavorite ? "Remove from favorites" : "Add to favorites"}
                     >
-                      {doc.isFavorite ? <span className="text-amber-500">★</span> : <span className="text-[var(--text-muted)]">☆</span>}
+                      <Star size={15} color={doc.isFavorite ? "var(--accent-amber)" : "var(--text-muted)"} fill={doc.isFavorite ? "var(--accent-amber)" : "none"} />
                     </button>
                   </div>
-                  <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1 truncate">
-                    {doc.title}
-                  </h3>
-                  <p className="text-sm text-[var(--text-secondary)] mb-3 truncate">
-                    {doc.fileName}
-                  </p>
-                  <div className="flex justify-between items-center text-xs text-[var(--text-muted)]">
-                    <span>{formatBytes(doc.fileSize)}</span>
-                    <span className={`badge ${doc.status === "verified" ? "green" : doc.status === "rejected" ? "red" : "amber"}`}>
-                      {doc.status}
-                    </span>
+                  <h3 className="truncate" style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.2rem" }}>{doc.title}</h3>
+                  <p className="truncate" style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>{doc.fileName}</p>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.875rem" }}>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{formatBytes(doc.fileSize)}</span>
+                    <span className={`badge ${doc.status === "verified" ? "green" : doc.status === "rejected" ? "red" : "amber"}`}>{doc.status}</span>
                   </div>
-                  <div className="flex gap-2 mt-4 pt-4 border-t border-[var(--border-color)]">
-                    <button
-                      className="button ghost flex-1 py-2 text-sm"
-                      onClick={(e) => { e.stopPropagation(); download(doc._id); }}
-                    >
-                      Download
-                    </button>
-                    <button
-                      className="button ghost flex-1 py-2 text-sm"
-                      onClick={(e) => { e.stopPropagation(); viewVerification(doc._id); }}
-                    >
-                      Verify
-                    </button>
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      className="button ghost flex-1 py-2 text-sm"
-                      onClick={(e) => { e.stopPropagation(); openShare(doc); }}
-                    >
-                      Share
-                    </button>
-                    {doc.isArchived ? (
-                      <button
-                        className="button ghost flex-1 py-2 text-sm text-green-500"
-                        onClick={(e) => { e.stopPropagation(); restore(doc._id); }}
-                      >
-                        <ArchiveRestore size={14} /> Restore
-                      </button>
-                    ) : (
-                      <button
-                        className="button ghost flex-1 py-2 text-sm text-amber-500"
-                        onClick={(e) => { e.stopPropagation(); archive(doc._id); }}
-                      >
-                        <Archive size={14} /> Archive
-                      </button>
-                    )}
-                    <button
-                      className="button ghost flex-1 py-2 text-sm text-red-500"
-                      onClick={(e) => { e.stopPropagation(); remove(doc._id); }}
-                    >
-                      <X size={14} /> Delete
-                    </button>
+                  <div style={{ display: "flex", gap: "0.375rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border-color)", flexWrap: "wrap" }}>
+                    <button className="button ghost" style={{ flex: 1, padding: "0.375rem 0.5rem", fontSize: "0.8rem", minWidth: 0 }} onClick={e => { e.stopPropagation(); download(doc._id); }}>Download</button>
+                    <button className="button ghost" style={{ flex: 1, padding: "0.375rem 0.5rem", fontSize: "0.8rem", minWidth: 0 }} onClick={e => { e.stopPropagation(); navigate(`/verification/${doc._id}`); }}>Verify</button>
+                    <button className="button ghost" style={{ flex: 1, padding: "0.375rem 0.5rem", fontSize: "0.8rem", minWidth: 0 }} onClick={e => { e.stopPropagation(); setShareDocument(doc); setShareOpen(true); }}>Share</button>
+                    {doc.isArchived
+                      ? <button className="button ghost" style={{ flex: 1, padding: "0.375rem 0.5rem", fontSize: "0.8rem", color: "var(--accent-green)", minWidth: 0 }} onClick={e => { e.stopPropagation(); restore(doc._id); }}><ArchiveRestore size={13} />Restore</button>
+                      : <button className="button ghost" style={{ flex: 1, padding: "0.375rem 0.5rem", fontSize: "0.8rem", color: "var(--accent-amber)", minWidth: 0 }} onClick={e => { e.stopPropagation(); archive(doc._id); }}><Archive size={13} />Archive</button>
+                    }
+                    <button className="button ghost" style={{ flex: 1, padding: "0.375rem 0.5rem", fontSize: "0.8rem", color: "var(--accent-red)", minWidth: 0 }} onClick={e => { e.stopPropagation(); remove(doc._id); }}><X size={13} />Delete</button>
                   </div>
                 </div>
               ))}
@@ -502,72 +299,35 @@ export default function Documents() {
           ) : (
             <div className="table-container">
               <table>
-                <thead>
-                  <tr>
-                    <th>Document</th>
-                    <th>Category</th>
-                    <th>Size</th>
-                    <th>Status</th>
-                    <th>Uploaded</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>Document</th><th>Category</th><th>Size</th><th>Status</th><th>Uploaded</th><th>Actions</th></tr></thead>
                 <tbody>
-                  {documents.map((doc) => (
+                  {documents.map(doc => (
                     <tr key={doc._id}>
                       <td>
-                        <div className="flex items-center gap-3">
-                          {doc.thumbnailUrl ? (
-                            <img 
-                              src={doc.thumbnailUrl} 
-                              alt={doc.title}
-                              className="w-10 h-10 rounded-lg object-cover"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                              }}
-                            />
-                          ) : null}
-                          <div className={`w-10 h-10 bg-gradient-to-br from-blue-500 to-violet-500 rounded-lg flex items-center justify-center text-white text-base font-bold ${doc.thumbnailUrl ? 'hidden' : ''}`}>
-                            {doc.fileName.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="font-medium text-[var(--text-primary)]">{doc.title}</div>
-                            <div className="text-xs text-[var(--text-muted)]">{doc.fileName}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                          <DocIcon doc={doc} size={36} />
+                          <div style={{ minWidth: 0 }}>
+                            <div className="truncate" style={{ fontWeight: 500, color: "var(--text-primary)", maxWidth: 220 }}>{doc.title}</div>
+                            <div className="truncate" style={{ fontSize: "0.75rem", color: "var(--text-muted)", maxWidth: 220 }}>{doc.fileName}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="capitalize">{doc.category}</td>
+                      <td style={{ textTransform: "capitalize" }}>{doc.category}</td>
                       <td>{formatBytes(doc.fileSize)}</td>
-                      <td>
-                        <span className={`badge ${doc.status === "verified" ? "green" : doc.status === "rejected" ? "red" : "amber"}`}>
-                          {doc.status}
-                        </span>
-                      </td>
+                      <td><span className={`badge ${doc.status === "verified" ? "green" : doc.status === "rejected" ? "red" : "amber"}`}>{doc.status}</span></td>
                       <td>{new Date(doc.createdAt).toLocaleDateString()}</td>
                       <td>
-                        <div className="flex gap-2">
-                          <button className="icon-button" onClick={() => download(doc._id)} title="Download">
-                            <Files size={16} />
+                        <div style={{ display: "flex", gap: "0.25rem" }}>
+                          <button className="icon-button" style={{ width: 32, height: 32 }} onClick={() => download(doc._id)} title="Download"><Files size={15} /></button>
+                          <button className="icon-button" style={{ width: 32, height: 32 }} onClick={() => toggleFavorite(doc._id, doc.isFavorite)} title={doc.isFavorite ? "Unfavorite" : "Favorite"}>
+                            <Star size={15} color={doc.isFavorite ? "var(--accent-amber)" : undefined} fill={doc.isFavorite ? "var(--accent-amber)" : "none"} />
                           </button>
-                          <button className="icon-button" onClick={() => toggleFavorite(doc._id, doc.isFavorite)} title={doc.isFavorite ? "Remove from favorites" : "Add to favorites"}>
-                            {doc.isFavorite ? <span className="text-amber-500">★</span> : <span className="text-[var(--text-muted)]">☆</span>}
-                          </button>
-                          <button className="icon-button" onClick={() => viewVerification(doc._id)} title="Verification">
-                            <ShieldCheck size={16} />
-                          </button>
-                          {doc.isArchived ? (
-                            <button className="icon-button text-green-500" onClick={() => restore(doc._id)} title="Restore">
-                              <ArchiveRestore size={16} />
-                            </button>
-                          ) : (
-                            <button className="icon-button text-amber-500" onClick={() => archive(doc._id)} title="Archive">
-                              <Archive size={16} />
-                            </button>
-                          )}
-                          <button className="icon-button text-red-500" onClick={() => remove(doc._id)} title="Delete">
-                            <X size={16} />
-                          </button>
+                          <button className="icon-button" style={{ width: 32, height: 32 }} onClick={() => navigate(`/verification/${doc._id}`)} title="Verification"><ShieldCheck size={15} /></button>
+                          {doc.isArchived
+                            ? <button className="icon-button" style={{ width: 32, height: 32, color: "var(--accent-green)" }} onClick={() => restore(doc._id)} title="Restore"><ArchiveRestore size={15} /></button>
+                            : <button className="icon-button" style={{ width: 32, height: 32, color: "var(--accent-amber)" }} onClick={() => archive(doc._id)} title="Archive"><Archive size={15} /></button>
+                          }
+                          <button className="icon-button" style={{ width: 32, height: 32, color: "var(--accent-red)" }} onClick={() => remove(doc._id)} title="Delete"><X size={15} /></button>
                         </div>
                       </td>
                     </tr>
@@ -577,62 +337,23 @@ export default function Documents() {
             </div>
           )}
 
+          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex justify-center gap-2 mt-8">
-              <button
-                className="button ghost px-4 py-2"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-              >
-                Previous
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <button
-                  key={p}
-                  className={`button ${page === p ? "primary" : "ghost"} px-4 py-2 min-w-[40px]`}
-                  onClick={() => setPage(p)}
-                >
-                  {p}
-                </button>
+            <div className="pagination">
+              <button className="button ghost" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>Previous</button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                <button key={p} className={`button ${page === p ? "primary" : "ghost"}`} onClick={() => setPage(p)}>{p}</button>
               ))}
-              <button
-                className="button ghost px-4 py-2"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-              >
-                Next
-              </button>
-            </div>
-          )}
-
-          {uploadOpen && (
-            <UploadModal onClose={() => setUploadOpen(false)} onUploaded={refreshAfterUpload} />
-          )}
-
-          {previewOpen && previewDocument && (
-            <DocumentPreviewModal
-              document={previewDocument}
-              onClose={() => setPreviewOpen(false)}
-              onToggleFavorite={toggleFavorite}
-            />
-          )}
-
-          {shareOpen && shareDocument && (
-            <ShareModal
-              documentId={shareDocument._id}
-              documentTitle={shareDocument.title}
-              onClose={() => setShareOpen(false)}
-            />
-          )}
-
-          {toast && (
-            <div className="toast">
-              <CheckCircle2 size={18} />
-              {toast}
+              <button className="button ghost" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next</button>
             </div>
           )}
         </div>
       </main>
+
+      {uploadOpen && <UploadModal onClose={() => setUploadOpen(false)} onUploaded={refreshAfterUpload} />}
+      {previewOpen && previewDocument && <DocumentPreviewModal document={previewDocument} onClose={() => setPreviewOpen(false)} onToggleFavorite={toggleFavorite} />}
+      {shareOpen && shareDocument && <ShareModal documentId={shareDocument._id} documentTitle={shareDocument.title} onClose={() => setShareOpen(false)} />}
+      {toast && <div className="toast" role="status" aria-live="polite"><CheckCircle2 size={15} aria-hidden="true" />{toast}</div>}
     </div>
   );
 }
