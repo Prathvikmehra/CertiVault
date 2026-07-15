@@ -35,6 +35,10 @@ interface SearchResult {
 export const globalSearch = async (options: SearchOptions): Promise<SearchResult> => {
   const { query, userId, filters, includeShared, page = 1, limit = 20 } = options;
 
+  if (typeof query !== "string") {
+    throw new ApiError(400, "INVALID_QUERY", "Query must be a string");
+  }
+
   if (!query || query.trim().length < 2) {
     return {
       documents: [],
@@ -45,6 +49,11 @@ export const globalSearch = async (options: SearchOptions): Promise<SearchResult
     };
   }
 
+  if (userId !== undefined && typeof userId !== "string") {
+    throw new ApiError(400, "INVALID_USER_ID", "User ID must be a string");
+  }
+  const cleanUserId = userId ? String(userId) : undefined;
+
   const skip = (page - 1) * limit;
   const searchQuery = query.trim();
 
@@ -53,19 +62,31 @@ export const globalSearch = async (options: SearchOptions): Promise<SearchResult
     $text: { $search: searchQuery },
   };
 
-  // Add filters
+  // Add filters safely
   if (filters) {
-    if (filters.category) baseQuery.category = filters.category;
-    if (filters.status) baseQuery.status = filters.status;
-    if (filters.verificationStatus) baseQuery.verificationStatus = filters.verificationStatus;
-    if (filters.isArchived !== undefined) baseQuery.isArchived = filters.isArchived;
-    if (filters.isFavorite !== undefined) baseQuery.isFavorite = filters.isFavorite;
-    if (filters.tags && filters.tags.length > 0) baseQuery.tags = { $in: filters.tags };
+    if (filters.category && typeof filters.category === "string") {
+      baseQuery.category = filters.category;
+    }
+    if (filters.status && typeof filters.status === "string") {
+      baseQuery.status = filters.status;
+    }
+    if (filters.verificationStatus && typeof filters.verificationStatus === "string") {
+      baseQuery.verificationStatus = filters.verificationStatus;
+    }
+    if (filters.isArchived !== undefined) {
+      baseQuery.isArchived = Boolean(filters.isArchived);
+    }
+    if (filters.isFavorite !== undefined) {
+      baseQuery.isFavorite = Boolean(filters.isFavorite);
+    }
+    if (filters.tags && Array.isArray(filters.tags)) {
+      baseQuery.tags = { $in: filters.tags.filter((t: any) => typeof t === "string") };
+    }
   }
 
   // If userId provided, only search user's documents (and shared if requested)
-  if (userId) {
-    const ownerQuery = { ...baseQuery, owner: userId };
+  if (cleanUserId) {
+    const ownerQuery = { ...baseQuery, owner: cleanUserId };
     
     if (includeShared) {
       // Search both owned and shared documents
@@ -78,7 +99,7 @@ export const globalSearch = async (options: SearchOptions): Promise<SearchResult
           .lean(),
         DocumentModel.find({
           ...baseQuery,
-          owner: { $ne: userId },
+          owner: { $ne: cleanUserId },
         })
           .select("-storageKey -hash -checksum")
           .skip(skip)
@@ -89,7 +110,7 @@ export const globalSearch = async (options: SearchOptions): Promise<SearchResult
 
       const combinedResults = [...ownedResults, ...sharedResults];
       const total = await DocumentModel.countDocuments(ownerQuery) + 
-                    await DocumentModel.countDocuments({ ...baseQuery, owner: { $ne: userId } });
+                    await DocumentModel.countDocuments({ ...baseQuery, owner: { $ne: cleanUserId } });
 
       return {
         documents: combinedResults.slice(0, limit),
@@ -144,10 +165,23 @@ export const globalSearch = async (options: SearchOptions): Promise<SearchResult
  * Search by specific field
  */
 export const searchByField = async (field: string, value: string, userId?: string): Promise<any[]> => {
-  const query: any = { [field]: { $regex: value, $options: "i" } };
+  const allowedFields = ["title", "description", "category", "status", "tags", "verificationStatus"];
+  if (!allowedFields.includes(field)) {
+    throw new ApiError(400, "INVALID_FIELD", "Invalid search field");
+  }
+  if (typeof value !== "string") {
+    throw new ApiError(400, "INVALID_VALUE", "Search value must be a string");
+  }
+  if (userId !== undefined && typeof userId !== "string") {
+    throw new ApiError(400, "INVALID_USER_ID", "User ID must be a string");
+  }
+
+  // Prevent RegExp injection by escaping special characters
+  const escapedValue = value.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  const query: any = { [field]: { $regex: escapedValue, $options: "i" } };
   
   if (userId) {
-    query.owner = userId;
+    query.owner = String(userId);
   }
 
   const documents = await DocumentModel.find(query)
@@ -162,7 +196,11 @@ export const searchByField = async (field: string, value: string, userId?: strin
  * Get search suggestions
  */
 export const getSearchSuggestions = async (query: string, userId?: string): Promise<string[]> => {
+  if (typeof query !== "string") return [];
   if (!query || query.trim().length < 2) return [];
+  if (userId !== undefined && typeof userId !== "string") {
+    throw new ApiError(400, "INVALID_USER_ID", "User ID must be a string");
+  }
 
   const searchQuery = query.trim();
   const baseQuery: any = {
@@ -170,7 +208,7 @@ export const getSearchSuggestions = async (query: string, userId?: string): Prom
   };
 
   if (userId) {
-    baseQuery.owner = userId;
+    baseQuery.owner = String(userId);
   }
 
   const documents = await DocumentModel.find(baseQuery)

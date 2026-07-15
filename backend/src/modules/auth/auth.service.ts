@@ -342,8 +342,13 @@ export const resetPassword = async (
   }
 
   // Find user with valid reset token
+  if (typeof token !== "string") {
+    throw new ApiError(400, "INVALID_TOKEN", "Invalid token format");
+  }
+  const cleanToken = String(token);
+
   const user = await User.findOne({
-    passwordResetToken: token,
+    passwordResetToken: cleanToken,
     passwordResetExpires: { $gt: new Date() },
   }).select("+passwordResetToken +passwordResetExpires");
 
@@ -365,8 +370,13 @@ export const resetPassword = async (
  * Verify email
  */
 export const verifyEmail = async (token: string): Promise<void> => {
+  if (typeof token !== "string") {
+    throw new ApiError(400, "INVALID_TOKEN", "Invalid token format");
+  }
+  const cleanToken = String(token);
+
   const user = await User.findOne({
-    emailVerificationToken: token,
+    emailVerificationToken: cleanToken,
     emailVerificationExpires: { $gt: new Date() },
   }).select("+emailVerificationToken +emailVerificationExpires");
 

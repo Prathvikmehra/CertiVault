@@ -1,50 +1,56 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { getEnv } from "../../src/config/env.js";
 
-test("env: default port when API_PORT is missing", () => {
-  const originalEnv = process.env.API_PORT;
-  delete process.env.API_PORT;
+test("env: default port when PORT is missing", async () => {
+  const originalEnv = process.env.PORT;
+  delete process.env.PORT;
   try {
+    const { getEnv } = await import(`../../src/config/env.js?t=1`);
     const env = getEnv();
-    assert.equal(env.port, 5000);
+    assert.equal(env.PORT, 5000);
   } finally {
     if (originalEnv !== undefined) {
-      process.env.API_PORT = originalEnv;
+      process.env.PORT = originalEnv;
     }
   }
 });
 
-test("env: accept valid ports", () => {
-  const originalEnv = process.env.API_PORT;
+test("env: accept valid ports", async () => {
+  const originalEnv = process.env.PORT;
   try {
-    process.env.API_PORT = "8080";
-    assert.equal(getEnv().port, 8080);
+    process.env.PORT = "8080";
+    const { getEnv: getEnv1 } = await import(`../../src/config/env.js?t=2`);
+    assert.equal(getEnv1().PORT, 8080);
 
-    process.env.API_PORT = "1";
-    assert.equal(getEnv().port, 1);
+    process.env.PORT = "1";
+    const { getEnv: getEnv2 } = await import(`../../src/config/env.js?t=3`);
+    assert.equal(getEnv2().PORT, 1);
 
-    process.env.API_PORT = "65535";
-    assert.equal(getEnv().port, 65535);
+    process.env.PORT = "65535";
+    const { getEnv: getEnv3 } = await import(`../../src/config/env.js?t=4`);
+    assert.equal(getEnv3().PORT, 65535);
   } finally {
     if (originalEnv !== undefined) {
-      process.env.API_PORT = originalEnv;
+      process.env.PORT = originalEnv;
     }
   }
 });
 
-test("env: reject invalid ports", () => {
-  const originalEnv = process.env.API_PORT;
+test("env: reject invalid ports", async () => {
+  const originalEnv = process.env.PORT;
   const invalidPorts = ["0", "-1", "65536", "3000.5", "abc", "", "   "];
 
   try {
+    let t = 5;
     for (const port of invalidPorts) {
-      process.env.API_PORT = port;
-      assert.throws(() => getEnv(), /API_PORT must be an integer between 1 and 65535/);
+      process.env.PORT = port;
+      await assert.rejects(async () => {
+        await import(`../../src/config/env.js?t=${t++}`);
+      });
     }
   } finally {
     if (originalEnv !== undefined) {
-      process.env.API_PORT = originalEnv;
+      process.env.PORT = originalEnv;
     }
   }
 });

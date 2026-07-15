@@ -41,9 +41,7 @@ export const inviteMemberSchema = z.object({
   documentId: z.string().min(1, "Document ID is required"),
   memberEmail: z.string().email("Invalid email address"),
   memberName: z.string().min(1, "Member name is required").optional(),
-  permission: z.enum(PERMISSIONS, {
-    errorMap: () => ({ message: "Invalid permission" }),
-  }),
+  permission: z.enum(["viewer", "editor", "admin"]),
   expiresAt: z.string().datetime("Invalid date format").optional(),
 });
 
@@ -51,9 +49,7 @@ export const inviteMemberSchema = z.object({
  * Update member permission schema
  */
 export const updateMemberPermissionSchema = z.object({
-  permission: z.enum(PERMISSIONS, {
-    errorMap: () => ({ message: "Invalid permission" }),
-  }),
+  permission: z.enum(["viewer", "editor", "admin"]),
 });
 
 /**

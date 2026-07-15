@@ -39,16 +39,23 @@ const generateInviteToken = (): string => {
 export const inviteMember = async (input: InviteMemberInput): Promise<ISharedMember> => {
   const { documentId, memberEmail, memberName, permission, invitedBy, invitedByName, invitedByEmail, expiresAt } = input;
 
+  if (typeof documentId !== "string" || typeof memberEmail !== "string" || typeof invitedBy !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid document ID, member email, or user ID");
+  }
+  const cleanDocumentId = String(documentId);
+  const cleanMemberEmail = String(memberEmail);
+  const cleanInvitedBy = String(invitedBy);
+
   // Verify document exists and user owns it
-  const document = await DocumentModel.findOne({ _id: documentId, owner: invitedBy });
+  const document = await DocumentModel.findOne({ _id: cleanDocumentId, owner: cleanInvitedBy });
   if (!document) {
     throw new ApiError(404, "DOCUMENT_NOT_FOUND", "Document not found or you don't have permission to share it");
   }
 
   // Check if member already has access
   const existingMember = await SharedMemberModel.findOne({
-    documentId,
-    memberEmail,
+    documentId: cleanDocumentId,
+    memberEmail: cleanMemberEmail,
     inviteStatus: { $in: ["pending", "accepted"] },
     isActive: true,
   });
@@ -62,11 +69,11 @@ export const inviteMember = async (input: InviteMemberInput): Promise<ISharedMem
 
   // Create shared member
   const member = await SharedMemberModel.create({
-    documentId,
-    memberEmail,
+    documentId: cleanDocumentId,
+    memberEmail: cleanMemberEmail,
     memberName,
     permission,
-    invitedBy,
+    invitedBy: cleanInvitedBy,
     invitedByName,
     invitedByEmail,
     inviteToken,
@@ -77,15 +84,15 @@ export const inviteMember = async (input: InviteMemberInput): Promise<ISharedMem
 
   // Log invite action
   await AccessLogModel.create({
-    documentId,
+    documentId: cleanDocumentId,
     documentTitle: document.title,
     sharedMemberId: member._id,
-    userId: invitedBy,
+    userId: cleanInvitedBy,
     userEmail: invitedByEmail,
     userName: invitedByName,
     action: "invite",
     metadata: {
-      memberEmail,
+      memberEmail: cleanMemberEmail,
       permission,
       expiresAt,
     },
@@ -100,8 +107,16 @@ export const inviteMember = async (input: InviteMemberInput): Promise<ISharedMem
 export const acceptInvite = async (input: AcceptInviteInput): Promise<ISharedMember> => {
   const { inviteToken, userId, userEmail, userName } = input;
 
+  if (typeof inviteToken !== "string" || typeof userId !== "string" || typeof userEmail !== "string" || typeof userName !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid invitation parameters");
+  }
+  const cleanInviteToken = String(inviteToken);
+  const cleanUserId = String(userId);
+  const cleanUserEmail = String(userEmail);
+  const cleanUserName = String(userName);
+
   const member = await SharedMemberModel.findOne({
-    inviteToken,
+    inviteToken: cleanInviteToken,
     inviteStatus: "pending",
     isActive: true,
   });
@@ -124,8 +139,8 @@ export const acceptInvite = async (input: AcceptInviteInput): Promise<ISharedMem
     member._id,
     {
       inviteStatus: "accepted",
-      memberUserId: userId,
-      memberName: member.memberName || userName,
+      memberUserId: cleanUserId,
+      memberName: member.memberName || cleanUserName,
       acceptedAt: new Date(),
     },
     { new: true }
@@ -136,9 +151,9 @@ export const acceptInvite = async (input: AcceptInviteInput): Promise<ISharedMem
     documentId: member.documentId,
     documentTitle: "", // Will be populated by document lookup
     sharedMemberId: member._id,
-    userId,
-    userEmail,
-    userName,
+    userId: cleanUserId,
+    userEmail: cleanUserEmail,
+    userName: cleanUserName,
     action: "accept",
   });
 
@@ -149,8 +164,14 @@ export const acceptInvite = async (input: AcceptInviteInput): Promise<ISharedMem
  * Decline an invitation
  */
 export const declineInvite = async (inviteToken: string, userId: string): Promise<void> => {
+  if (typeof inviteToken !== "string" || typeof userId !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid invitation token or user ID");
+  }
+  const cleanInviteToken = String(inviteToken);
+  const cleanUserId = String(userId);
+
   const member = await SharedMemberModel.findOne({
-    inviteToken,
+    inviteToken: cleanInviteToken,
     inviteStatus: "pending",
     isActive: true,
   });
@@ -169,7 +190,7 @@ export const declineInvite = async (inviteToken: string, userId: string): Promis
     documentId: member.documentId,
     documentTitle: "",
     sharedMemberId: member._id,
-    userId,
+    userId: cleanUserId,
     action: "decline",
   });
 };
@@ -178,22 +199,28 @@ export const declineInvite = async (inviteToken: string, userId: string): Promis
  * Revoke member access
  */
 export const revokeMember = async (memberId: string, userId: string): Promise<void> => {
-  const member = await SharedMemberModel.findOne({ _id: memberId });
+  if (typeof memberId !== "string" || typeof userId !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid member ID or user ID");
+  }
+  const cleanMemberId = String(memberId);
+  const cleanUserId = String(userId);
+
+  const member = await SharedMemberModel.findOne({ _id: cleanMemberId });
   if (!member) {
     throw new ApiError(404, "MEMBER_NOT_FOUND", "Member not found");
   }
 
   // Verify user is the document owner
-  const document = await DocumentModel.findOne({ _id: member.documentId, owner: userId });
+  const document = await DocumentModel.findOne({ _id: member.documentId, owner: cleanUserId });
   if (!document) {
     throw new ApiError(403, "NO_PERMISSION", "You don't have permission to revoke this member");
   }
 
-  await SharedMemberModel.findByIdAndUpdate(memberId, {
+  await SharedMemberModel.findByIdAndUpdate(cleanMemberId, {
     inviteStatus: "revoked",
     isActive: false,
     revokedAt: new Date(),
-    revokedBy: userId,
+    revokedBy: cleanUserId,
   });
 
   // Log revoke action
@@ -201,7 +228,7 @@ export const revokeMember = async (memberId: string, userId: string): Promise<vo
     documentId: member.documentId,
     documentTitle: document.title,
     sharedMemberId: member._id,
-    userId,
+    userId: cleanUserId,
     action: "revoke",
     metadata: {
       memberEmail: member.memberEmail,
@@ -217,20 +244,27 @@ export const updateMemberPermission = async (
   userId: string,
   permission: Permission
 ): Promise<ISharedMember> => {
-  const member = await SharedMemberModel.findOne({ _id: memberId });
+  if (typeof memberId !== "string" || typeof userId !== "string" || typeof permission !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid member ID, user ID, or permission");
+  }
+  const cleanMemberId = String(memberId);
+  const cleanUserId = String(userId);
+  const cleanPermission = String(permission);
+
+  const member = await SharedMemberModel.findOne({ _id: cleanMemberId });
   if (!member) {
     throw new ApiError(404, "MEMBER_NOT_FOUND", "Member not found");
   }
 
   // Verify user is the document owner
-  const document = await DocumentModel.findOne({ _id: member.documentId, owner: userId });
+  const document = await DocumentModel.findOne({ _id: member.documentId, owner: cleanUserId });
   if (!document) {
     throw new ApiError(403, "NO_PERMISSION", "You don't have permission to update this member");
   }
 
   const updatedMember = await SharedMemberModel.findByIdAndUpdate(
-    memberId,
-    { permission },
+    cleanMemberId,
+    { permission: cleanPermission },
     { new: true }
   ).lean();
 
@@ -241,14 +275,20 @@ export const updateMemberPermission = async (
  * Get all members for a document
  */
 export const getDocumentMembers = async (documentId: string, userId: string): Promise<ISharedMember[]> => {
+  if (typeof documentId !== "string" || typeof userId !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid document ID or user ID");
+  }
+  const cleanDocumentId = String(documentId);
+  const cleanUserId = String(userId);
+
   // Verify user is the document owner
-  const document = await DocumentModel.findOne({ _id: documentId, owner: userId });
+  const document = await DocumentModel.findOne({ _id: cleanDocumentId, owner: cleanUserId });
   if (!document) {
     throw new ApiError(403, "NO_PERMISSION", "You don't have permission to view members");
   }
 
   const members = await SharedMemberModel.find({ 
-    documentId,
+    documentId: cleanDocumentId,
     isActive: true 
   })
     .sort({ createdAt: -1 })
@@ -261,10 +301,16 @@ export const getDocumentMembers = async (documentId: string, userId: string): Pr
  * Get all invitations for a user
  */
 export const getUserInvitations = async (userId: string, userEmail: string): Promise<ISharedMember[]> => {
+  if (typeof userId !== "string" || typeof userEmail !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid user ID or email");
+  }
+  const cleanUserId = String(userId);
+  const cleanUserEmail = String(userEmail);
+
   const members = await SharedMemberModel.find({
     $or: [
-      { memberUserId: userId },
-      { memberEmail: userEmail },
+      { memberUserId: cleanUserId },
+      { memberEmail: cleanUserEmail },
     ],
     inviteStatus: "pending",
     isActive: true,
@@ -285,11 +331,15 @@ export const getSharedWithUser = async (userId: string, page = 1, limit = 20): P
   limit: number;
   totalPages: number;
 }> => {
+  if (typeof userId !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid user ID");
+  }
+  const cleanUserId = String(userId);
   const skip = (page - 1) * limit;
 
   const [members, total] = await Promise.all([
     SharedMemberModel.find({
-      memberUserId: userId,
+      memberUserId: cleanUserId,
       inviteStatus: "accepted",
       isActive: true,
     })
@@ -299,7 +349,7 @@ export const getSharedWithUser = async (userId: string, page = 1, limit = 20): P
       .limit(limit)
       .lean(),
     SharedMemberModel.countDocuments({
-      memberUserId: userId,
+      memberUserId: cleanUserId,
       inviteStatus: "accepted",
       isActive: true,
     }),

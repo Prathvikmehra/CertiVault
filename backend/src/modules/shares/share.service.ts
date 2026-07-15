@@ -3,6 +3,7 @@
  */
 
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import { SharedDocumentModel, ISharedDocument } from "./sharedDocument.model.js";
 import { DocumentModel } from "../documents/document.model.js";
 import { AccessLogModel, AccessAction } from "./accessLog.model.js";
@@ -45,10 +46,10 @@ const generateShareUrl = (shareToken: string): string => {
 };
 
 /**
- * Hash password for storage
+ * Hash password for storage using bcrypt
  */
-const hashPassword = (password: string): string => {
-  return crypto.createHash("sha256").update(password).digest("hex");
+const hashPassword = async (password: string): Promise<string> => {
+  return bcrypt.hash(password, 10);
 };
 
 /**
@@ -57,8 +58,15 @@ const hashPassword = (password: string): string => {
 export const createShare = async (input: CreateShareInput): Promise<ISharedDocument> => {
   const { documentId, ownerId, ownerName, ownerEmail, password, expiresAt, maxAccessCount, createdBy } = input;
 
+  if (typeof documentId !== "string" || typeof ownerId !== "string" || typeof createdBy !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid document ID, owner ID, or creator ID");
+  }
+  const cleanDocumentId = String(documentId);
+  const cleanOwnerId = String(ownerId);
+  const cleanCreatedBy = String(createdBy);
+
   // Verify document exists and user owns it
-  const document = await DocumentModel.findOne({ _id: documentId, owner: ownerId });
+  const document = await DocumentModel.findOne({ _id: cleanDocumentId, owner: cleanOwnerId });
   if (!document) {
     throw new ApiError(404, "DOCUMENT_NOT_FOUND", "Document not found or you don't have permission to share it");
   }
@@ -73,14 +81,14 @@ export const createShare = async (input: CreateShareInput): Promise<ISharedDocum
   const shareUrl = generateShareUrl(shareToken);
 
   // Hash password if provided
-  const hashedPassword = password ? hashPassword(password) : undefined;
+  const hashedPassword = password ? await hashPassword(password) : undefined;
 
   // Create shared document
   const sharedDocument = await SharedDocumentModel.create({
-    documentId,
+    documentId: cleanDocumentId,
     documentTitle: document.title,
     documentFileName: document.fileName,
-    owner: ownerId,
+    owner: cleanOwnerId,
     ownerName,
     ownerEmail,
     shareToken,
@@ -90,16 +98,16 @@ export const createShare = async (input: CreateShareInput): Promise<ISharedDocum
     maxAccessCount,
     currentAccessCount: 0,
     isActive: true,
-    createdBy,
+    createdBy: cleanCreatedBy,
   });
 
   // Log share action
   await AccessLogModel.create({
-    documentId,
+    documentId: cleanDocumentId,
     documentTitle: document.title,
     sharedDocumentId: sharedDocument._id,
     shareToken,
-    userId: createdBy,
+    userId: cleanCreatedBy,
     userEmail: ownerEmail,
     userName: ownerName,
     action: "share",
@@ -117,8 +125,13 @@ export const createShare = async (input: CreateShareInput): Promise<ISharedDocum
  * Get share by token (without password)
  */
 export const getShareByToken = async (shareToken: string): Promise<ISharedDocument | null> => {
+  if (typeof shareToken !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid share token");
+  }
+  const cleanShareToken = String(shareToken);
+
   const share = await SharedDocumentModel.findOne({ 
-    shareToken, 
+    shareToken: cleanShareToken, 
     isActive: true 
   }).select("-password");
 
@@ -152,9 +165,19 @@ export const accessShare = async (input: AccessShareInput): Promise<{
 }> => {
   const { shareToken, password, userId, userEmail, userName, ipAddress, userAgent } = input;
 
+  if (typeof shareToken !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid share token");
+  }
+  const cleanShareToken = String(shareToken);
+
+  if (userId !== undefined && typeof userId !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid user ID");
+  }
+  const cleanUserId = userId ? String(userId) : undefined;
+
   // Get share with password field for validation
   const share = await SharedDocumentModel.findOne({ 
-    shareToken, 
+    shareToken: cleanShareToken, 
     isActive: true 
   });
 
@@ -185,8 +208,8 @@ export const accessShare = async (input: AccessShareInput): Promise<{
       };
     }
 
-    const hashedPassword = hashPassword(password);
-    if (hashedPassword !== share.password) {
+    const isMatch = await bcrypt.compare(password, share.password);
+    if (!isMatch) {
       throw new ApiError(401, "INVALID_PASSWORD", "Invalid password");
     }
   }
@@ -201,8 +224,8 @@ export const accessShare = async (input: AccessShareInput): Promise<{
     documentId: share.documentId,
     documentTitle: share.documentTitle,
     sharedDocumentId: share._id,
-    shareToken,
-    userId,
+    shareToken: cleanShareToken,
+    userId: cleanUserId,
     userEmail,
     userName,
     action: "view",
@@ -222,12 +245,18 @@ export const accessShare = async (input: AccessShareInput): Promise<{
  * Revoke a share link
  */
 export const revokeShare = async (shareId: string, userId: string): Promise<void> => {
-  const share = await SharedDocumentModel.findOne({ _id: shareId, owner: userId });
+  if (typeof shareId !== "string" || typeof userId !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid share ID or user ID");
+  }
+  const cleanShareId = String(shareId);
+  const cleanUserId = String(userId);
+
+  const share = await SharedDocumentModel.findOne({ _id: cleanShareId, owner: cleanUserId });
   if (!share) {
     throw new ApiError(404, "SHARE_NOT_FOUND", "Share link not found or you don't have permission to revoke it");
   }
 
-  await SharedDocumentModel.findByIdAndUpdate(shareId, { isActive: false });
+  await SharedDocumentModel.findByIdAndUpdate(cleanShareId, { isActive: false });
 
   // Log revoke action
   await AccessLogModel.create({
@@ -235,7 +264,7 @@ export const revokeShare = async (shareId: string, userId: string): Promise<void
     documentTitle: share.documentTitle,
     sharedDocumentId: share._id,
     shareToken: share.shareToken,
-    userId,
+    userId: cleanUserId,
     action: "revoke",
   });
 };
@@ -250,16 +279,20 @@ export const getUserShares = async (userId: string, page = 1, limit = 20): Promi
   limit: number;
   totalPages: number;
 }> => {
+  if (typeof userId !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid user ID");
+  }
+  const cleanUserId = String(userId);
   const skip = (page - 1) * limit;
 
   const [shares, total] = await Promise.all([
-    SharedDocumentModel.find({ owner: userId })
+    SharedDocumentModel.find({ owner: cleanUserId })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .select("-password")
       .lean(),
-    SharedDocumentModel.countDocuments({ owner: userId }),
+    SharedDocumentModel.countDocuments({ owner: cleanUserId }),
   ]);
 
   return {
@@ -275,9 +308,15 @@ export const getUserShares = async (userId: string, page = 1, limit = 20): Promi
  * Get share by ID
  */
 export const getShareById = async (shareId: string, userId: string): Promise<ISharedDocument | null> => {
+  if (typeof shareId !== "string" || typeof userId !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid share ID or user ID");
+  }
+  const cleanShareId = String(shareId);
+  const cleanUserId = String(userId);
+
   const share = await SharedDocumentModel.findOne({ 
-    _id: shareId, 
-    owner: userId 
+    _id: cleanShareId, 
+    owner: cleanUserId 
   }).select("-password").lean();
 
   return share as unknown as ISharedDocument | null;
@@ -295,7 +334,13 @@ export const updateShare = async (
     password?: string;
   }
 ): Promise<ISharedDocument> => {
-  const share = await SharedDocumentModel.findOne({ _id: shareId, owner: userId });
+  if (typeof shareId !== "string" || typeof userId !== "string") {
+    throw new ApiError(400, "INVALID_INPUT", "Invalid share ID or user ID");
+  }
+  const cleanShareId = String(shareId);
+  const cleanUserId = String(userId);
+
+  const share = await SharedDocumentModel.findOne({ _id: cleanShareId, owner: cleanUserId });
   if (!share) {
     throw new ApiError(404, "SHARE_NOT_FOUND", "Share link not found or you don't have permission to update it");
   }
@@ -304,11 +349,11 @@ export const updateShare = async (
   if (updates.expiresAt !== undefined) updateData.expiresAt = updates.expiresAt;
   if (updates.maxAccessCount !== undefined) updateData.maxAccessCount = updates.maxAccessCount;
   if (updates.password !== undefined) {
-    updateData.password = updates.password ? hashPassword(updates.password) : null;
+    updateData.password = updates.password ? await hashPassword(updates.password) : null;
   }
 
   const updatedShare = await SharedDocumentModel.findByIdAndUpdate(
-    shareId,
+    cleanShareId,
     updateData,
     { new: true }
   ).select("-password").lean();

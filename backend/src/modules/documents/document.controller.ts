@@ -303,7 +303,7 @@ export const verifyDocument = async (
     const { id } = req.params;
     const { status, notes } = verifyDocumentSchema.parse(req.body);
 
-    const document = await verifyDocumentService(Array.isArray(id) ? id[0] : id, userId, userId, status, notes);
+    const document = await verifyDocumentService(Array.isArray(id) ? id[0] : id, userId, userId, status as "verified" | "rejected", notes);
 
     res.json({ data: document });
   } catch (error) {

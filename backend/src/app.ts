@@ -19,6 +19,7 @@ import { notFound } from "./middleware/notFound.js";
 import { requestId } from "./middleware/requestId.js";
 import { responseTime } from "./middleware/responseTime.js";
 import { httpLogger } from "./common/utils/logger.js";
+import { csrfProtection } from "./middleware/csrf.js";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { infoRouter } from "./modules/info/info.routes.js";
 import { documentRouter } from "./modules/documents/document.routes.js";
@@ -50,28 +51,29 @@ export const createApp = (): Express => {
   // ============================================
   app.use(
     helmet({
-      contentSecurityPolicy: isDevelopment
-        ? false
-        : {
-            directives: {
-              defaultSrc: ["'self'"],
-              styleSrc: ["'self'", "'unsafe-inline'"],
-              scriptSrc: ["'self'"],
-              imgSrc: ["'self'", "data:", "https:"],
-              connectSrc: ["'self'", "https://api.certi-vault.com"],
-              fontSrc: ["'self'"],
-              objectSrc: ["'none'"],
-              mediaSrc: ["'self'"],
-              frameSrc: ["'none'"],
-            },
-          },
-      hsts: isProduction
-        ? {
-            maxAge: 31536000,
-            includeSubDomains: true,
-            preload: true,
-          }
-        : false,
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", "data:", "https:"],
+          connectSrc: [
+            "'self'",
+            "https://api.certi-vault.com",
+            "http://localhost:*",
+            "http://127.0.0.1:*",
+          ],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          mediaSrc: ["'self'"],
+          frameSrc: ["'none'"],
+        },
+      },
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true,
+      },
     })
   );
 
@@ -123,6 +125,7 @@ export const createApp = (): Express => {
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
   app.use(cookieParser());
+  app.use(csrfProtection);
 
   // ============================================
   // COMPRESSION
