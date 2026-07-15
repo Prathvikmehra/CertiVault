@@ -49,6 +49,7 @@ export type Env = z.infer<typeof envSchema>;
 
 const validateEnv = (): Env => {
   const result = envSchema.safeParse(process.env);
+  console.log(`[DEBUG] validateEnv: process.env.NODE_ENV = ${process.env.NODE_ENV}, NODE_ENV_result = ${result.success ? result.data.NODE_ENV : 'failed'}`);
   
   if (!result.success) {
     const errors = result.error.issues
