@@ -42,14 +42,13 @@ const envSchema = z.object({
   RATE_LIMIT_MAX: z.string().transform(Number).pipe(z.number().positive()).default(100),
   BCRYPT_ROUNDS: z.string().transform(Number).pipe(z.number().min(10).max(15)).default(12),
   SESSION_COOKIE_NAME: z.string().default("refreshToken"),
-  TRUST_PROXY: z.string().transform(v => v === "true").default(false),
+  TRUST_PROXY: z.string().transform(v => v === "true").default(() => false),
 });
 
 export type Env = z.infer<typeof envSchema>;
 
 const validateEnv = (): Env => {
   const result = envSchema.safeParse(process.env);
-  console.log(`[DEBUG] validateEnv: process.env.NODE_ENV = ${process.env.NODE_ENV}, NODE_ENV_result = ${result.success ? result.data.NODE_ENV : 'failed'}`);
   
   if (!result.success) {
     const errors = result.error.issues

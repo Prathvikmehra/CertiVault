@@ -1,52 +1,9 @@
 import { DocumentModel, IDocument } from "./document.model.js";
 
-
-const now = Date.now();
-
-const initialDocuments: any[] = [
-  {
-    id: "demo-credential",
-    name: "Cloud Security Certificate.pdf",
-    type: "Certificate",
-    size: 2457600,
-    status: "verified",
-    owner: "Krishna Kumar",
-    createdAt: new Date(now - 2 * 86400000),
-    checksum: "7b9f4c2e8a10d34f",
-  },
-  {
-    id: "demo-contract",
-    name: "Vendor Agreement 2026.pdf",
-    type: "Contract",
-    size: 1153433,
-    status: "pending",
-    owner: "Krishna Kumar",
-    createdAt: new Date(now - 5 * 86400000),
-    checksum: "a41d9b6604cc82e1",
-  },
-  {
-    id: "demo-identity",
-    name: "Identity Verification.png",
-    type: "Identity",
-    size: 845414,
-    status: "verified",
-    owner: "Krishna Kumar",
-    createdAt: new Date(now - 8 * 86400000),
-    checksum: "18e613fea60aeb4d",
-  },
-];
-
 export const seedDatabase = async (): Promise<void> => {
-  try {
-    const count = await DocumentModel.countDocuments();
-    if (count === 0) {
-      console.log("Seeding initial documents into MongoDB...");
-      await DocumentModel.insertMany(initialDocuments);
-      console.log("Documents seeded successfully!");
-    }
-  } catch (err) {
-    console.error("Error seeding database:", err);
-  }
+  // Seed data intentionally removed: demo documents require valid User ObjectIds
+  // which aren't available at startup. The DB starts empty and is populated by
+  // real uploads.
 };
 
 export const documentStore = {

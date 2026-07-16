@@ -8,6 +8,7 @@ import { SharedDocumentModel, ISharedDocument } from "./sharedDocument.model.js"
 import { DocumentModel } from "../documents/document.model.js";
 import { AccessLogModel, AccessAction } from "./accessLog.model.js";
 import { ApiError } from "../../utils/ApiError.js";
+import { getEnv } from "../../config/env.js";
 
 interface CreateShareInput {
   documentId: string;
@@ -41,7 +42,7 @@ const generateShareToken = (): string => {
  * Generate share URL
  */
 const generateShareUrl = (shareToken: string): string => {
-  const baseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const baseUrl = getEnv().FRONTEND_ORIGIN || "http://localhost:5173";
   return `${baseUrl}/share/${shareToken}`;
 };
 

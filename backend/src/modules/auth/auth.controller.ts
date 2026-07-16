@@ -84,9 +84,9 @@ export const loginController = async (req: Request, res: Response): Promise<void
  * Refresh access token
  */
 export const refreshTokenController = async (req: Request, res: Response): Promise<void> => {
-  const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+  const tokenValue = req.cookies.refreshToken || req.body.refreshToken;
   
-  if (!refreshToken) {
+  if (!tokenValue) {
     res.status(401).json({
       success: false,
       error: {
@@ -100,7 +100,7 @@ export const refreshTokenController = async (req: Request, res: Response): Promi
   const ipAddress = req.ip || req.connection.remoteAddress || "unknown";
   const userAgent = req.headers["user-agent"] || "unknown";
 
-  const tokens = await refreshToken(refreshToken, ipAddress, userAgent);
+  const tokens = await refreshToken(tokenValue, ipAddress, userAgent);
 
   // Set new HTTP-only cookie for refresh token
   res.cookie("refreshToken", tokens.refreshToken, {
@@ -124,10 +124,10 @@ export const refreshTokenController = async (req: Request, res: Response): Promi
  * Logout user
  */
 export const logoutController = async (req: Request, res: Response): Promise<void> => {
-  const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+  const tokenValue = req.cookies.refreshToken || req.body.refreshToken;
 
-  if (refreshToken) {
-    await logout(refreshToken);
+  if (tokenValue) {
+    await logout(tokenValue);
   }
 
   // Clear refresh token cookie

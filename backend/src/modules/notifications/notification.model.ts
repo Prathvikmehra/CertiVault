@@ -102,8 +102,15 @@ notificationSchema.index({ userId: 1, createdAt: -1 });
 notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index for auto-deletion
 
 // Pre-find middleware to filter out expired notifications
+// Include documents where expiresAt is null/undefined (never expires) OR is in the future
 notificationSchema.pre("find", function (this: mongoose.QueryWithHelpers<unknown, unknown>) {
-  this.where({ expiresAt: { $gt: new Date() } });
+  this.where({
+    $or: [
+      { expiresAt: null },
+      { expiresAt: { $exists: false } },
+      { expiresAt: { $gt: new Date() } },
+    ],
+  });
 });
 
 export const Notification = mongoose.model<INotification>("Notification", notificationSchema);

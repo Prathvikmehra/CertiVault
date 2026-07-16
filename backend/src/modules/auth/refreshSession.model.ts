@@ -67,11 +67,6 @@ const refreshSessionSchema = new Schema<IRefreshSession>(
 // Compound index for efficient user session queries
 refreshSessionSchema.index({ userId: 1, revokedAt: 1 });
 
-// Pre-find middleware to filter out revoked sessions
-refreshSessionSchema.pre("find", function (this: mongoose.QueryWithHelpers<unknown, unknown>) {
-  this.where({ revokedAt: null });
-});
-
 // Instance method: Check if session is expired
 refreshSessionSchema.methods.isExpired = function (): boolean {
   return new Date() > this.expiresAt;
@@ -97,7 +92,8 @@ refreshSessionSchema.statics.findValidForUser = function (userId: mongoose.Types
   });
 };
 
-// Static method: Find by token hash
+// Static method: Find by token hash (intentionally does NOT filter by revokedAt
+// so the caller can check revocation status itself — see auth.service.ts)
 refreshSessionSchema.statics.findByTokenHash = function (tokenHash: string) {
   return this.findOne({ tokenHash }).select("+tokenHash");
 };
