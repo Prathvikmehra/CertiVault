@@ -143,7 +143,7 @@ export const acceptInvite = async (input: AcceptInviteInput): Promise<ISharedMem
       memberName: member.memberName || cleanUserName,
       acceptedAt: new Date(),
     },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
 
   // Log accept action
@@ -265,7 +265,7 @@ export const updateMemberPermission = async (
   const updatedMember = await SharedMemberModel.findByIdAndUpdate(
     cleanMemberId,
     { permission: cleanPermission },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
 
   return updatedMember as unknown as ISharedMember;

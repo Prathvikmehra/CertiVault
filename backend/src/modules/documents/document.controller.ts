@@ -15,6 +15,7 @@ import {
   filterDocuments,
   getRecentDocuments,
   getFavoriteDocuments,
+  getDocumentForDownload,
   getDocumentDownloadUrl,
   getDocumentSummary,
   getActivityTimeline,
@@ -416,7 +417,7 @@ export const getFavoriteDocumentsController = async (
 };
 
 /**
- * Get document download URL
+ * Get document download URL or stream the file directly for local storage
  */
 export const getDownloadUrl = async (
   req: Request,
@@ -430,8 +431,41 @@ export const getDownloadUrl = async (
     }
 
     const { id } = req.params;
-    const url = await getDocumentDownloadUrl(Array.isArray(id) ? id[0] : id, userId);
+    const { document, url, isLocal, localKey } = await getDocumentForDownload(
+      Array.isArray(id) ? id[0] : id,
+      userId
+    );
 
+    if (isLocal) {
+      // Stream the file directly from local storage so the frontend
+      // doesn't have to resolve a relative URL against the wrong origin
+      const path = await import("path");
+      const fs = await import("fs");
+      const { existsSync } = fs;
+
+      const LOCAL_STORAGE_DIR = path.join(process.cwd(), "uploads", "documents");
+      const filePath = path.join(LOCAL_STORAGE_DIR, localKey);
+
+      if (!existsSync(filePath)) {
+        return next(new ApiError(404, "FILE_NOT_FOUND", "File not found on disk"));
+      }
+
+      const filename = (document as any).fileName || path.basename(filePath);
+      const mimeType = (document as any).mimeType || "application/octet-stream";
+
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${encodeURIComponent(filename)}"`
+      );
+
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.on("error", (err) => next(err));
+      fileStream.pipe(res);
+      return;
+    }
+
+    // For S3 presigned URLs — return the URL for the frontend to redirect to
     res.json({ data: { url } });
   } catch (error) {
     next(error);

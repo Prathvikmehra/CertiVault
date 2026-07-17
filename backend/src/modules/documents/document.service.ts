@@ -174,7 +174,7 @@ export const getDocuments = async (input: GetDocumentsInput) => {
     query.status = status;
   }
 
-  if (category) {
+  if (category && category !== "all") {
     query.category = category;
   }
 
@@ -264,7 +264,7 @@ export const updateDocument = async (
   const document = await DocumentModel.findOneAndUpdate(
     { _id: id, owner: ownerId },
     updates,
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   ).lean();
 
   if (!document) {
@@ -306,7 +306,7 @@ export const archiveDocument = async (
       archivedAt: new Date(),
       archivedBy,
     },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
 
   if (!document) {
@@ -327,7 +327,7 @@ export const restoreDocument = async (id: string, ownerId: string): Promise<IDoc
       archivedAt: undefined,
       archivedBy: undefined,
     },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
 
   if (!document) {
@@ -347,7 +347,7 @@ export const favoriteDocument = async (id: string, ownerId: string): Promise<IDo
       isFavorite: true,
       favoritedAt: new Date(),
     },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
 
   if (!document) {
@@ -367,7 +367,7 @@ export const unfavoriteDocument = async (id: string, ownerId: string): Promise<I
       isFavorite: false,
       favoritedAt: undefined,
     },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
 
   if (!document) {
@@ -395,7 +395,7 @@ export const verifyDocument = async (
       verifiedAt: new Date(),
       verifiedBy,
     },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
 
   if (!document) {
@@ -561,13 +561,13 @@ export const getFavoriteDocuments = async (
 };
 
 /**
- * Get document download URL
+ * Get document for streaming (returns document metadata for controller to stream)
  * Accessible by the document owner OR any accepted shared member
  */
-export const getDocumentDownloadUrl = async (
+export const getDocumentForDownload = async (
   id: string,
   requesterId: string
-): Promise<string> => {
+): Promise<{ document: IDocument; url: string; isLocal: boolean; localKey: string }> => {
   // Try owner first
   let document = await DocumentModel.findOne({ _id: id, owner: requesterId });
 
@@ -597,11 +597,31 @@ export const getDocumentDownloadUrl = async (
     lastAccessedAt: new Date(),
   });
 
-  return await getPresignedDownloadUrl(
+  const isLocal = document.storageProvider === StorageProvider.LOCAL || !document.storageProvider;
+  const url = await getPresignedDownloadUrl(
     document.storageKey,
     document.storageProvider as StorageProvider,
     document.fileName
   );
+
+  return {
+    document: document as unknown as IDocument,
+    url,
+    isLocal,
+    localKey: document.storageKey,
+  };
+};
+
+/**
+ * Get document download URL
+ * Accessible by the document owner OR any accepted shared member
+ */
+export const getDocumentDownloadUrl = async (
+  id: string,
+  requesterId: string
+): Promise<string> => {
+  const { url } = await getDocumentForDownload(id, requesterId);
+  return url;
 };
 
 /**

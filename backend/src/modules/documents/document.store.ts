@@ -19,7 +19,7 @@ export const documentStore = {
   },
   update: async (id: string, updates: Partial<IDocument>): Promise<IDocument | null> => {
     return (await DocumentModel.findOneAndUpdate({ id }, updates, {
-      new: true,
+      returnDocument: "after",
     }).lean()) as unknown as IDocument | null;
   },
   remove: async (id: string): Promise<boolean> => {

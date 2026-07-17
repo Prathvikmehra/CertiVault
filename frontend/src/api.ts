@@ -189,29 +189,50 @@ export const api = {
   },
 
   downloadDocument: async (id: string, filename?: string): Promise<void> => {
-    const { url, filename: originalFilename } = await api.getDocumentDownloadUrl(id, filename);
-    
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error('Download failed');
-      }
-      
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = originalFilename;
+    // Call the download endpoint directly with auth headers — the backend will either
+    // stream the file (local storage) or return a JSON { data: { url } } (S3).
+    const token = localStorage.getItem("accessToken");
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+    const response = await fetch(`${API_BASE_URL}/api/documents/${id}/download`, {
+      credentials: "include",
+      headers,
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { error?: { message?: string } };
+      throw new Error((body as any).error?.message || "Download failed");
+    }
+
+    const contentType = response.headers.get("Content-Type") || "";
+
+    if (contentType.includes("application/json")) {
+      // S3 path — backend returned a presigned URL, open it directly
+      const data = (await response.json()) as { data: { url: string } };
+      const a = document.createElement("a");
+      a.href = data.data.url;
+      a.download = filename || `document-${id}`;
       document.body.appendChild(a);
       a.click();
-      
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (error) {
-      console.error('Download error:', error);
-      throw error;
+      return;
     }
+
+    // Local storage path — backend streamed the file bytes
+    const disposition = response.headers.get("Content-Disposition") || "";
+    const nameMatch = disposition.match(/filename="([^"]+)"/);
+    const resolvedFilename = filename || (nameMatch ? decodeURIComponent(nameMatch[1]) : `document-${id}`);
+
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = resolvedFilename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(blobUrl);
   },
 
   getDocumentSummary: (): Promise<{ data: Summary }> =>

@@ -356,7 +356,7 @@ export const updateShare = async (
   const updatedShare = await SharedDocumentModel.findByIdAndUpdate(
     cleanShareId,
     updateData,
-    { new: true }
+    { returnDocument: "after" }
   ).select("-password").lean();
 
   return updatedShare as unknown as ISharedDocument;

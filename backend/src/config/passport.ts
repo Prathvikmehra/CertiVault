@@ -39,7 +39,7 @@ passport.use(
                 lastLoginAt: new Date(),
               },
             },
-            { new: true }
+            { returnDocument: "after" }
           );
           return done(null, updated || user);
         }
@@ -61,7 +61,7 @@ passport.use(
                 lastLoginAt: new Date(),
               },
             },
-            { new: true }
+            { returnDocument: "after" }
           );
           return done(null, updated || existingUser);
         }
