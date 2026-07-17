@@ -30,6 +30,7 @@ import shareRouter from "./modules/shares/share.routes.js";
 import settingsRouter from "./modules/users/settings.routes.js";
 import notificationRouter from "./modules/notifications/notification.routes.js";
 import searchRouter from "./modules/search/search.routes.js";
+import { createBullBoardRouter } from "./config/bullboard.js"; // UPDATED
 
 const env = getEnv();
 
@@ -199,6 +200,15 @@ export const createApp = (): Express => {
   app.use("/api", settingsRouter);
   app.use("/api", notificationRouter);
   app.use("/api", searchRouter);
+
+  // ============================================
+  // BULL BOARD — Queue Admin UI (UPDATED)
+  // Protected by HTTP Basic Auth
+  // Access: http://localhost:5000/admin/queues
+  // ============================================
+  const { router: bullBoardRouter, authMiddleware: bullBoardAuth } =
+    createBullBoardRouter();
+  app.use("/admin/queues", bullBoardAuth, bullBoardRouter);
 
   // Serve local files for development with proper headers
   app.use("/api/files", (req, res, next) => {

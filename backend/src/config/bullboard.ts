@@ -2,12 +2,12 @@
  * Bull Board — Admin UI for BullMQ queues
  * Mounts at /admin/queues (basic-auth protected).
  *
- * Required packages (install once):
- *   npm install @bull-board/express @bull-board/api
+ * Required packages (already installed):
+ *   @bull-board/express @bull-board/api
  */
 
 import { createBullBoard } from "@bull-board/api";
-import { BullMQAdapter } from "@bull-board/api/bullMQAdapter.js";
+import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { ExpressAdapter } from "@bull-board/express";
 import type { RequestHandler, Request, Response, NextFunction } from "express";
 import { emailQueue } from "../queues/email.queue.js";

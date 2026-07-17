@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { readFileSync } from "node:fs";
+import mongoose from "mongoose";
+import { checkRedisHealth } from "../../config/redis.js"; // UPDATED
 
 let version = "0.0.0";
 try {
@@ -17,10 +19,23 @@ export const getLiveness = (_req: Request, res: Response): void => {
   });
 };
 
-export const getReadiness = (_req: Request, res: Response): void => {
-  res.status(200).json({
-    status: "ready",
+// UPDATED — async readiness check includes MongoDB + Redis status
+export const getReadiness = async (_req: Request, res: Response): Promise<void> => {
+  const mongoState = mongoose.connection.readyState;
+  // 1 = connected, 2 = connecting
+  const mongoStatus: "healthy" | "unhealthy" =
+    mongoState === 1 || mongoState === 2 ? "healthy" : "unhealthy";
+
+  const redisStatus = await checkRedisHealth();
+
+  const allHealthy = mongoStatus === "healthy" && redisStatus === "healthy";
+
+  res.status(allHealthy ? 200 : 503).json({
+    status: allHealthy ? "ready" : "degraded",
     version,
-    checks: {},
+    checks: {
+      mongo: mongoStatus,
+      redis: redisStatus,
+    },
   });
 };

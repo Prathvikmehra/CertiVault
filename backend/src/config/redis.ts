@@ -5,48 +5,18 @@
  * and graceful shutdown on SIGTERM/SIGINT.
  */
 
-import Redis from "ioredis";
+import { Redis, type RedisOptions } from "ioredis";
 import { getEnv } from "./env.js";
 import { createModuleLogger } from "../common/utils/logger.js";
 
 const log = createModuleLogger("redis");
-
-// ─── Build connection options from env ───────────────────────────────────────
-
-function buildRedisOptions(): Redis.RedisOptions {
-  const env = getEnv();
-
-  // Prefer a full REDIS_URL (e.g. redis://:password@host:6379)
-  // Individual REDIS_HOST / REDIS_PORT are used as fallback.
-  if (env.REDIS_URL) {
-    return {
-      // ioredis accepts a URL string directly in the constructor,
-      // but we still want to merge our extra options, so we parse it here.
-      lazyConnect: false,
-      enableReadyCheck: true,
-      maxRetriesPerRequest: 3,
-      retryStrategy: retryStrategy,
-      reconnectOnError: reconnectOnError,
-    };
-  }
-
-  return {
-    host: env.REDIS_HOST ?? "127.0.0.1",
-    port: env.REDIS_PORT ? parseInt(env.REDIS_PORT, 10) : 6379,
-    lazyConnect: false,
-    enableReadyCheck: true,
-    maxRetriesPerRequest: 3,
-    retryStrategy: retryStrategy,
-    reconnectOnError: reconnectOnError,
-  };
-}
 
 // ─── Retry strategy — exponential backoff, cap at 2 000 ms ──────────────────
 
 function retryStrategy(times: number): number | null {
   if (times > 10) {
     log.error("Redis: max reconnection attempts (10) reached — giving up");
-    return null; // stop retrying; ioredis will emit an error
+    return null; // stop retrying; ioredis emits an error
   }
   const delay = Math.min(100 * 2 ** times, 2000);
   log.warn(`Redis: reconnecting in ${delay}ms (attempt ${times})`);
@@ -58,20 +28,29 @@ function reconnectOnError(err: Error): boolean {
   return err.message.startsWith("READONLY");
 }
 
+// ─── Shared connection option overrides ──────────────────────────────────────
+
+const sharedOptions: Partial<RedisOptions> = {
+  lazyConnect: false,
+  enableReadyCheck: true,
+  maxRetriesPerRequest: 3,
+  retryStrategy,
+  reconnectOnError,
+};
+
 // ─── Create the singleton client ─────────────────────────────────────────────
 
 function createRedisClient(): Redis {
   const env = getEnv();
 
-  const client = env.REDIS_URL
-    ? new Redis(env.REDIS_URL, {
-        lazyConnect: false,
-        enableReadyCheck: true,
-        maxRetriesPerRequest: 3,
-        retryStrategy: retryStrategy,
-        reconnectOnError: reconnectOnError,
-      })
-    : new Redis(buildRedisOptions());
+  // Prefer a full REDIS_URL (e.g. redis://:password@host:6379/0)
+  const client: Redis = env.REDIS_URL
+    ? new Redis(env.REDIS_URL, sharedOptions)
+    : new Redis({
+        host: env.REDIS_HOST ?? "127.0.0.1",
+        port: env.REDIS_PORT ? parseInt(env.REDIS_PORT, 10) : 6379,
+        ...sharedOptions,
+      });
 
   // ── Event handlers ──────────────────────────────────────────────────────
 
@@ -84,7 +63,7 @@ function createRedisClient(): Redis {
   });
 
   client.on("error", (err: Error) => {
-    log.error("Redis: client error", { error: err.message, stack: err.stack });
+    log.error("Redis: client error", { error: err.message });
   });
 
   client.on("close", () => {
@@ -102,7 +81,8 @@ function createRedisClient(): Redis {
   return client;
 }
 
-// Export the singleton instance
+// ─── Singleton instance ───────────────────────────────────────────────────────
+
 export const redis = createRedisClient();
 
 // ─── Health check helper ──────────────────────────────────────────────────────
