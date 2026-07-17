@@ -20,16 +20,18 @@ import { requestId } from "./middleware/requestId.js";
 import { responseTime } from "./middleware/responseTime.js";
 import { httpLogger } from "./common/utils/logger.js";
 import { csrfProtection } from "./middleware/csrf.js";
+import { metricsMiddleware } from "./middleware/metrics.middleware.js"; // UPDATED
+import { metricsRegistry } from "./config/metrics.js"; // UPDATED
 import { healthRouter } from "./modules/health/health.routes.js";
 import { infoRouter } from "./modules/info/info.routes.js";
 import { documentRouter } from "./modules/documents/document.routes.js";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { verificationRouter } from "./modules/verifications/verification.routes.js";
-import shareRouter from "./modules/shares/share.routes.js";
 import settingsRouter from "./modules/users/settings.routes.js";
 import notificationRouter from "./modules/notifications/notification.routes.js";
 import searchRouter from "./modules/search/search.routes.js";
+import { vaultRouter } from "./modules/vault/vault.routes.js"; // UPDATED
 import { createBullBoardRouter } from "./config/bullboard.js"; // UPDATED
 
 const env = getEnv();
@@ -118,6 +120,8 @@ export const createApp = (): Express => {
   // ============================================
   app.use(requestId);
   app.use(responseTime);
+  // UPDATED — Prometheus HTTP metrics (before httpLogger so timing is accurate)
+  app.use(metricsMiddleware);
   app.use(httpLogger);
 
   // ============================================
@@ -192,14 +196,28 @@ export const createApp = (): Express => {
   // ============================================
   app.use("/health", healthRouter);
   app.use("/api", infoRouter);
+
+  // ============================================
+  // PROMETHEUS METRICS ENDPOINT (UPDATED)
+  // Scraped by Prometheus every 15 s.
+  // Protected by IP allowlist in production via nginx — no auth here.
+  // ============================================
+  app.get("/metrics", async (_req, res) => {
+    try {
+      res.set("Content-Type", metricsRegistry.contentType);
+      res.end(await metricsRegistry.metrics());
+    } catch (err) {
+      res.status(500).end(err instanceof Error ? err.message : "metrics error");
+    }
+  });
   app.use("/api/auth", authRouter);
   app.use("/api/documents", documentRouter);
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/verifications", verificationRouter);
-  app.use("/api", shareRouter);
   app.use("/api", settingsRouter);
   app.use("/api", notificationRouter);
   app.use("/api", searchRouter);
+  app.use("/api/vault", vaultRouter); // UPDATED
 
   // ============================================
   // BULL BOARD — Queue Admin UI (UPDATED)

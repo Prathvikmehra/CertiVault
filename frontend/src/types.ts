@@ -237,3 +237,39 @@ export interface DownloadStats {
   }>;
 }
 
+// ─── Vault Member Types ───────────────────────────────────────────────────────
+
+export type VaultRole = "viewer" | "editor";
+export type VaultMemberStatus = "pending" | "active" | "revoked" | "declined";
+
+export interface VaultMemberUser {
+  _id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+}
+
+export interface VaultMember {
+  _id: string;
+  vaultOwnerId: string | VaultMemberUser;
+  memberUserId: string | VaultMemberUser | null;
+  memberEmail: string;
+  role: VaultRole;
+  status: VaultMemberStatus;
+  inviteToken: string;
+  inviteExpiresAt: string;
+  invitedAt: string;
+  acceptedAt: string | null;
+  revokedAt: string | null;
+  declinedAt: string | null;
+  revokedBy: "owner" | "member" | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VaultMemberList {
+  active: VaultMember[];
+  pending: VaultMember[];
+  declined: VaultMember[];
+}
+

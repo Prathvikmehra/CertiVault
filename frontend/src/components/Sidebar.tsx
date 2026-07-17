@@ -1,6 +1,8 @@
-import { Check, FileCheck2, Files, FolderOpen, LayoutDashboard, Settings, ShieldCheck, Sparkles, UserRound, MoreHorizontal } from "lucide-react";
+import { useEffect, useState } from "react"; // UPDATED
+import { Check, FileCheck2, Files, FolderOpen, LayoutDashboard, Settings, ShieldCheck, Sparkles, Users, MoreHorizontal } from "lucide-react"; // UPDATED
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext.js";
+import { api } from "../api.js"; // UPDATED
 import { Summary } from "../types.js";
 
 interface SidebarProps {
@@ -11,6 +13,14 @@ interface SidebarProps {
 export function Sidebar({ mobileNav, summary }: SidebarProps) {
   const location = useLocation();
   const { user } = useAuth();
+  // UPDATED — live count of vaults shared with me
+  const [sharedVaultCount, setSharedVaultCount] = useState(0);
+
+  useEffect(() => {
+    api.getSharedVaults()
+      .then((res) => setSharedVaultCount(res.data.length))
+      .catch(() => { /* silently ignore — sidebar badge is not critical */ });
+  }, []);
 
   const getUserInitials = () => {
     if (!user?.name) return "U";
@@ -65,16 +75,21 @@ export function Sidebar({ mobileNav, summary }: SidebarProps) {
             <span className="nav-count amber">{summary.pending}</span>
           )}
         </Link>
-        <Link to="/shared-vaults" className={isActive("/shared-vaults") ? "active" : ""}>
+
+        <p className="nav-section-label">Vault</p>{/* UPDATED */}
+        <Link to="/vault/members" className={isActive("/vault/members") ? "active" : ""}>
+          <Users size={18} aria-hidden="true" />
+          Vault Members
+        </Link>
+        <Link to="/vault/shared" className={location.pathname.startsWith("/vault/shared") ? "active" : ""}>
           <FolderOpen size={18} aria-hidden="true" />
           Shared Vaults
+          {sharedVaultCount > 0 && (
+            <span className="nav-count">{sharedVaultCount}</span>
+          )}
         </Link>
 
         <p className="nav-section-label">Manage</p>
-        <Link to="/team-members" className={isActive("/team-members") ? "active" : ""}>
-          <UserRound size={18} aria-hidden="true" />
-          Team Members
-        </Link>
         <Link to="/settings" className={isActive("/settings") ? "active" : ""}>
           <Settings size={18} aria-hidden="true" />
           Settings

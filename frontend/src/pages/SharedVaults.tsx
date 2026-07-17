@@ -1,32 +1,222 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { AlertCircle, Users, Link as LinkIcon, Clock, Eye, Download, Copy, X, ChevronRight, CheckCircle2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  FolderOpen, Clock, CheckCircle2, AlertCircle, ArrowRight,
+  LogOut, Shield, Eye, Users,
+} from "lucide-react";
 import { Sidebar } from "../components/Sidebar.js";
 import { Topbar } from "../components/Topbar.js";
-import { Summary, SharedDocument, SharedMember, AccessLog } from "../types.js";
 import { api } from "../api.js";
+import type { VaultMember, VaultMemberUser, Summary } from "../types.js";
 
-type Tab = "my-shares" | "shared-with-me" | "access-logs";
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getOwner(m: VaultMember): VaultMemberUser | null {
+  if (m.vaultOwnerId && typeof m.vaultOwnerId === "object")
+    return m.vaultOwnerId as VaultMemberUser;
+  return null;
+}
+
+function expiryCountdown(iso: string): string {
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return "Expired";
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return h > 0 ? `${h}h ${m}m remaining` : `${m}m remaining`;
+}
+
+function fmt(s: string) {
+  return new Date(s).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function getInitials(name: string) {
+  return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+}
+
+// ─── Pending invite card ──────────────────────────────────────────────────────
+
+function PendingCard({ invite, onAccept, onDecline }: {
+  invite: VaultMember;
+  onAccept: (token: string) => void;
+  onDecline: (token: string) => void;
+}) {
+  const owner = getOwner(invite);
+  const [acting, setActing] = useState<"accept" | "decline" | null>(null);
+
+  return (
+    <div
+      className="card"
+      style={{ padding: "1.25rem", borderLeft: "3px solid var(--accent-blue)" }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}>
+        {/* Owner avatar */}
+        <div
+          style={{
+            width: 42, height: 42, borderRadius: "50%",
+            background: "var(--accent-violet)", color: "#fff",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontWeight: 700, fontSize: "0.9375rem", flexShrink: 0,
+          }}
+          aria-hidden="true"
+        >
+          {owner?.name ? getInitials(owner.name) : "?"}
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontWeight: 700, fontSize: "0.9375rem", color: "var(--text-primary)", margin: 0 }}>
+            {owner?.name ?? "Someone"} invited you
+          </p>
+          <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", margin: "0.125rem 0 0.5rem" }}>
+            {owner?.email}
+          </p>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+            <span className={`badge ${invite.role === "editor" ? "green" : "blue"}`}>
+              {invite.role === "editor" ? <Shield size={11} /> : <Eye size={11} />}
+              {invite.role}
+            </span>
+            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "0.25rem" }}>
+              <Clock size={11} /> {expiryCountdown(invite.inviteExpiresAt)}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+          <button
+            className="button ghost"
+            style={{ fontSize: "0.8125rem", padding: "0.375rem 0.75rem", height: "auto" }}
+            disabled={acting !== null}
+            onClick={() => { setActing("decline"); onDecline(invite.inviteToken); }}
+          >
+            {acting === "decline" ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "Decline"}
+          </button>
+          <button
+            className="button primary"
+            style={{ fontSize: "0.8125rem", padding: "0.375rem 0.75rem", height: "auto" }}
+            disabled={acting !== null}
+            onClick={() => { setActing("accept"); onAccept(invite.inviteToken); }}
+          >
+            {acting === "accept" ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "Accept"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Active vault card ────────────────────────────────────────────────────────
+
+function VaultCard({ membership, onOpen, onLeave }: {
+  membership: VaultMember;
+  onOpen: (m: VaultMember) => void;
+  onLeave: (m: VaultMember) => void;
+}) {
+  const owner = getOwner(membership);
+  const ownerId = typeof membership.vaultOwnerId === "string"
+    ? membership.vaultOwnerId
+    : (membership.vaultOwnerId as VaultMemberUser)._id;
+
+  return (
+    <div
+      className="card"
+      style={{ padding: "1.25rem", display: "flex", flexDirection: "column", gap: "1rem" }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.875rem" }}>
+        <div
+          style={{
+            width: 44, height: 44, borderRadius: "50%",
+            background: "var(--accent-blue)", color: "#fff",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontWeight: 700, fontSize: "1rem", flexShrink: 0,
+          }}
+          aria-hidden="true"
+        >
+          {owner?.name ? getInitials(owner.name) : "?"}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontWeight: 700, fontSize: "0.9375rem", color: "var(--text-primary)", margin: 0 }}>
+            {owner?.name ?? "Unknown"}'s Vault
+          </p>
+          <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", margin: "0.125rem 0 0" }}>
+            {owner?.email}
+          </p>
+        </div>
+        <span className={`badge ${membership.role === "editor" ? "green" : "blue"}`}>
+          {membership.role === "editor" ? <Shield size={11} /> : <Eye size={11} />}
+          {membership.role}
+        </span>
+      </div>
+
+      <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", margin: 0 }}>
+        Joined {membership.acceptedAt ? fmt(membership.acceptedAt) : "—"}
+      </p>
+
+      {/* Actions */}
+      <div style={{ display: "flex", gap: "0.5rem" }}>
+        <button
+          className="button primary"
+          style={{ flex: 1, gap: "0.375rem" }}
+          onClick={() => onOpen(membership)}
+        >
+          Open Vault <ArrowRight size={14} aria-hidden="true" />
+        </button>
+        <button
+          className="icon-button"
+          style={{ color: "var(--accent-red)", width: 36, height: 36 }}
+          onClick={() => onLeave(membership)}
+          title="Leave vault"
+          aria-label={`Leave ${owner?.name ?? "this"}'s vault`}
+        >
+          <LogOut size={15} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SharedVaults() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [summary] = useState<Summary>({ total: 0, verified: 0, pending: 0, rejected: 0, archived: 0, favorites: 0, storageBytes: 0 });
   const [mobileNav, setMobileNav] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>("my-shares");
-  const [myShares, setMyShares] = useState<SharedDocument[]>([]);
-  const [isLoadingShares, setIsLoadingShares] = useState(false);
-  const [sharedWithMe, setSharedWithMe] = useState<SharedMember[]>([]);
-  const [isLoadingSharedWithMe, setIsLoadingSharedWithMe] = useState(false);
-  const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
-  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [invites, setInvites] = useState<VaultMember[]>([]);
+  const [activeVaults, setActiveVaults] = useState<VaultMember[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [confirmLeave, setConfirmLeave] = useState<VaultMember | null>(null);
 
+  // Handle ?invite=token from invite email link
+  const inviteToken = searchParams.get("invite");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [invRes, vaultRes] = await Promise.all([
+        api.getMyVaultInvites(),
+        api.getSharedVaults(),
+      ]);
+      setInvites(invRes.data);
+      setActiveVaults(vaultRes.data);
+    } catch (e: any) {
+      setError(e.message || "Failed to load vaults");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Auto-scroll to invite if arriving from email link
   useEffect(() => {
-    if (activeTab === "my-shares")       loadMyShares();
-    if (activeTab === "shared-with-me")  loadSharedWithMe();
-    if (activeTab === "access-logs")     loadAccessLogs();
-  }, [activeTab]);
+    if (inviteToken && !loading) {
+      const el = document.getElementById("pending-invites");
+      el?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [inviteToken, loading]);
 
   useEffect(() => {
     if (!success) return;
@@ -34,48 +224,46 @@ export default function SharedVaults() {
     return () => clearTimeout(t);
   }, [success]);
 
-  const loadMyShares = async () => {
-    setIsLoadingShares(true); setError("");
-    try { const r = await api.getUserShares(); setMyShares(r.data.shares); }
-    catch (err: any) { setError(err.message || "Failed to load shares"); }
-    finally { setIsLoadingShares(false); }
-  };
-  const loadSharedWithMe = async () => {
-    setIsLoadingSharedWithMe(true); setError("");
-    try { const r = await api.getSharedWithMe(); setSharedWithMe(r.data.members); }
-    catch (err: any) { setError(err.message || "Failed to load shared documents"); }
-    finally { setIsLoadingSharedWithMe(false); }
-  };
-  const loadAccessLogs = async () => {
-    setIsLoadingLogs(true); setError("");
-    try { const r = await api.getUserAccessLogs(); setAccessLogs(r.data.logs); }
-    catch (err: any) { setError(err.message || "Failed to load access logs"); }
-    finally { setIsLoadingLogs(false); }
-  };
-  const revokeShare = async (id: string) => {
-    try { await api.revokeShare(id); setSuccess("Share link revoked"); loadMyShares(); }
-    catch (err: any) { setError(err.message || "Failed to revoke share"); }
-  };
-  const copyToClipboard = async (url: string) => {
-    try { await navigator.clipboard.writeText(url); setSuccess("Link copied to clipboard"); }
-    catch { setError("Failed to copy to clipboard"); }
-  };
+  async function handleAccept(token: string) {
+    try {
+      await api.acceptVaultInvite(token);
+      setSuccess("Invite accepted — you now have access to the vault");
+      load();
+    } catch (e: any) {
+      setError(e.message || "Failed to accept invite");
+    }
+  }
 
-  const fmt = (s: string) => new Date(s).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  async function handleDecline(token: string) {
+    try {
+      await api.declineVaultInvite(token);
+      setSuccess("Invite declined");
+      load();
+    } catch (e: any) {
+      setError(e.message || "Failed to decline invite");
+    }
+  }
 
-  const actionIcon = (action: string) => {
-    if (action === "view")     return <Eye size={15} />;
-    if (action === "download") return <Download size={15} />;
-    if (action === "share")    return <LinkIcon size={15} />;
-    return <AlertCircle size={15} />;
-  };
-  const actionColor = (action: string) => {
-    if (action === "view")     return "var(--accent-blue)";
-    if (action === "download") return "var(--accent-green)";
-    if (action === "share")    return "var(--accent-violet)";
-    if (action === "revoke")   return "var(--accent-red)";
-    return "var(--text-muted)";
-  };
+  async function handleLeave(membership: VaultMember) {
+    const ownerId = typeof membership.vaultOwnerId === "string"
+      ? membership.vaultOwnerId
+      : (membership.vaultOwnerId as VaultMemberUser)._id;
+    try {
+      await api.leaveVault(ownerId);
+      setSuccess("You left the vault");
+      setConfirmLeave(null);
+      load();
+    } catch (e: any) {
+      setError(e.message || "Failed to leave vault");
+    }
+  }
+
+  function openVault(m: VaultMember) {
+    const ownerId = typeof m.vaultOwnerId === "string"
+      ? m.vaultOwnerId
+      : (m.vaultOwnerId as VaultMemberUser)._id;
+    navigate(`/vault/shared/${ownerId}/documents`);
+  }
 
   return (
     <div className="app-shell">
@@ -85,141 +273,111 @@ export default function SharedVaults() {
         <Topbar search="" setSearch={() => {}} setMobileNav={setMobileNav} />
         <div className="content">
 
+          {/* Header */}
           <section className="hero-row">
             <div>
-              <p className="eyebrow">Shared Vaults</p>
+              <p className="eyebrow">Vault</p>
               <h1>Shared Vaults</h1>
-              <p>Manage shared document links and access.</p>
+              <p>Vaults shared with you and pending invitations.</p>
             </div>
           </section>
 
           {/* Messages */}
           {error && (
-            <div className="upload-error" style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }} role="alert">
+            <div className="upload-error" role="alert" style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
               <AlertCircle size={16} aria-hidden="true" />{error}
             </div>
           )}
           {success && (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 0.875rem", background: "rgba(16,185,129,.08)", border: "1px solid rgba(16,185,129,.2)", borderRadius: "var(--radius-md)", color: "var(--accent-green)", fontSize: "0.875rem", marginBottom: "1rem" }} role="status">
+            <div role="status" style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 0.875rem", background: "rgba(16,185,129,.08)", border: "1px solid rgba(16,185,129,.2)", borderRadius: "var(--radius-md)", color: "var(--accent-green)", fontSize: "0.875rem", marginBottom: "1rem" }}>
               <CheckCircle2 size={16} aria-hidden="true" />{success}
             </div>
           )}
 
-          {/* Tabs */}
-          <div className="tabs" role="tablist">
-            {([
-              { key: "my-shares",      icon: <LinkIcon size={16} />, label: `My Shares (${myShares.length})` },
-              { key: "shared-with-me", icon: <Users size={16} />,    label: `Shared with Me (${sharedWithMe.length})` },
-              { key: "access-logs",    icon: <Clock size={16} />,    label: "Access Logs" },
-            ] as const).map(({ key, icon, label }) => (
-              <button key={key} role="tab" aria-selected={activeTab === key}
-                className={`tab-btn ${activeTab === key ? "active" : ""}`}
-                onClick={() => setActiveTab(key as Tab)}>
-                {icon}{label}
-              </button>
-            ))}
-          </div>
-
-          {/* My Shares */}
-          {activeTab === "my-shares" && (
-            isLoadingShares ? (
-              <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}><div className="spinner" /></div>
-            ) : myShares.length === 0 ? (
-              <div className="empty-state">
-                <LinkIcon size={52} />
-                <h3>No shared documents</h3>
-                <p>You haven't shared any documents yet.</p>
-                <button className="button primary" onClick={() => navigate("/documents")}>Go to Documents</button>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
-                {myShares.map(share => (
-                  <div key={share._id} className="section-card-row card" style={{ display: "flex", alignItems: "flex-start", gap: "1rem", padding: "1rem 1.25rem" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem", flexWrap: "wrap" }}>
-                        <h3 style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>{share.documentTitle}</h3>
-                        {!share.isActive && <span className="badge red">Revoked</span>}
-                      </div>
-                      <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>{share.documentFileName}</p>
-                      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                        {share.expiresAt && <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}><Clock size={12} />Expires {fmt(share.expiresAt)}</span>}
-                        {share.maxAccessCount && <span>Access {share.currentAccessCount}/{share.maxAccessCount}</span>}
-                        <span>Created {fmt(share.createdAt)}</span>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: "0.375rem", flexShrink: 0 }}>
-                      <button className="icon-button" style={{ width: 32, height: 32 }} onClick={() => copyToClipboard(share.shareUrl)} title="Copy link" aria-label="Copy share link"><Copy size={15} /></button>
-                      {share.isActive && (
-                        <button className="icon-button" style={{ width: 32, height: 32, color: "var(--accent-red)" }} onClick={() => revokeShare(share._id)} title="Revoke" aria-label="Revoke share"><X size={15} /></button>
-                      )}
-                    </div>
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}><div className="spinner" /></div>
+          ) : (
+            <>
+              {/* Pending invites */}
+              {invites.length > 0 && (
+                <section id="pending-invites" style={{ marginBottom: "2rem" }}>
+                  <h2 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <Clock size={16} aria-hidden="true" />
+                    Pending Invitations
+                    <span className="nav-count amber">{invites.length}</span>
+                  </h2>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    {invites.map((inv) => (
+                      <PendingCard
+                        key={inv._id}
+                        invite={inv}
+                        onAccept={handleAccept}
+                        onDecline={handleDecline}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
-            )
-          )}
+                </section>
+              )}
 
-          {/* Shared with Me */}
-          {activeTab === "shared-with-me" && (
-            isLoadingSharedWithMe ? (
-              <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}><div className="spinner" /></div>
-            ) : sharedWithMe.length === 0 ? (
-              <div className="empty-state">
-                <Users size={52} />
-                <h3>Nothing shared with you</h3>
-                <p>No one has shared documents with you yet.</p>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
-                {sharedWithMe.map(member => (
-                  <div key={member._id} className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1rem 1.25rem" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem", flexWrap: "wrap" }}>
-                        <span style={{ fontWeight: 600, color: "var(--text-primary)", fontSize: "0.9375rem" }}>{member.invitedByName}</span>
-                        <span className={`badge ${member.permission === "admin" ? "violet" : member.permission === "editor" ? "green" : "blue"}`}>{member.permission}</span>
-                        <span className={`badge ${member.inviteStatus === "accepted" ? "green" : "amber"}`}>{member.inviteStatus}</span>
-                      </div>
-                      <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>{member.invitedByEmail}</p>
-                      <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>Shared {fmt(member.createdAt)}</p>
-                    </div>
-                    <button className="icon-button" style={{ width: 32, height: 32 }} onClick={() => navigate("/documents")} aria-label="View document"><ChevronRight size={16} /></button>
-                  </div>
-                ))}
-              </div>
-            )
-          )}
+              {/* Active vaults */}
+              <section>
+                <h2 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <FolderOpen size={16} aria-hidden="true" />
+                  My Shared Vaults
+                  {activeVaults.length > 0 && <span className="nav-count">{activeVaults.length}</span>}
+                </h2>
 
-          {/* Access Logs */}
-          {activeTab === "access-logs" && (
-            isLoadingLogs ? (
-              <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}><div className="spinner" /></div>
-            ) : accessLogs.length === 0 ? (
-              <div className="empty-state">
-                <Clock size={52} />
-                <h3>No access logs</h3>
-                <p>No access activity has been recorded yet.</p>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                {accessLogs.map(log => (
-                  <div key={log._id} style={{ display: "flex", alignItems: "center", gap: "0.875rem", padding: "0.75rem 1rem", background: "var(--bg-secondary)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)" }}>
-                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--bg-tertiary)", display: "flex", alignItems: "center", justifyContent: "center", color: actionColor(log.action), flexShrink: 0 }}>
-                      {actionIcon(log.action)}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                        <span style={{ fontWeight: 600, color: "var(--text-primary)", fontSize: "0.875rem", textTransform: "capitalize" }}>{log.action}</span>
-                        <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>{log.documentTitle}</span>
-                      </div>
-                      <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.125rem" }}>{log.userEmail} · {fmt(log.createdAt)}</p>
-                    </div>
+                {activeVaults.length === 0 ? (
+                  <div className="empty-state" style={{ padding: "2.5rem" }}>
+                    <Users size={44} aria-hidden="true" />
+                    <h3>No vaults shared with you</h3>
+                    <p>When someone invites you to their vault, it will appear here.</p>
                   </div>
-                ))}
-              </div>
-            )
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
+                    {activeVaults.map((v) => (
+                      <VaultCard
+                        key={v._id}
+                        membership={v}
+                        onOpen={openVault}
+                        onLeave={(m) => setConfirmLeave(m)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
           )}
         </div>
       </main>
+
+      {/* Leave vault confirm dialog */}
+      {confirmLeave && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="leave-dialog-title"
+          style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
+        >
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }} onClick={() => setConfirmLeave(null)} aria-hidden="true" />
+          <div style={{ position: "relative", zIndex: 1, background: "var(--bg-secondary)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-lg)", padding: "1.75rem", maxWidth: 380, width: "100%" }}>
+            <h2 id="leave-dialog-title" style={{ fontSize: "1.125rem", fontWeight: 700, marginBottom: "0.75rem" }}>Leave vault?</h2>
+            <p style={{ color: "var(--text-muted)", fontSize: "0.9375rem", marginBottom: "1.25rem" }}>
+              You will lose access to {(getOwner(confirmLeave)?.name ?? "this user")}'s vault and its documents.
+            </p>
+            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
+              <button className="button ghost" onClick={() => setConfirmLeave(null)}>Cancel</button>
+              <button
+                className="button"
+                style={{ background: "var(--accent-red)", color: "#fff", border: "none" }}
+                onClick={() => handleLeave(confirmLeave)}
+              >
+                Leave Vault
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

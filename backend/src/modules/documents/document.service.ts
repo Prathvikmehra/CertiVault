@@ -571,24 +571,28 @@ export const getDocumentForDownload = async (
   // Try owner first
   let document = await DocumentModel.findOne({ _id: id, owner: requesterId });
 
-  // If not owner, check if the requester is an accepted shared member
+  // If not owner, check if the requester is an active vault member of the document's owner
   if (!document) {
-    const { SharedMemberModel } = await import("../shares/sharedMember.model.js");
-    const sharedAccess = await SharedMemberModel.findOne({
-      documentId: id,
-      memberUserId: requesterId,
-      inviteStatus: "accepted",
-      isActive: true,
-    });
+    const { VaultMember } = await import("../vault/vaultMember.model.js");
 
-    if (!sharedAccess) {
+    // Find the document regardless of owner first
+    const docById = await DocumentModel.findById(id);
+    if (!docById) {
       throw new ApiError(404, "DOCUMENT_NOT_FOUND", "Document not found or access denied");
     }
 
-    document = await DocumentModel.findById(id);
-    if (!document) {
-      throw new ApiError(404, "DOCUMENT_NOT_FOUND", "Document not found");
+    // Then verify the requester has active vault membership for that owner
+    const vaultAccess = await VaultMember.findOne({
+      vaultOwnerId: docById.owner,
+      memberUserId: requesterId,
+      status: "active",
+    });
+
+    if (!vaultAccess) {
+      throw new ApiError(404, "DOCUMENT_NOT_FOUND", "Document not found or access denied");
     }
+
+    document = docById;
   }
 
   // Increment download count

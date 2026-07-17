@@ -4,6 +4,8 @@ import { CloudUpload, FileCheck2, Upload, X, CheckCircle2, AlertCircle, RefreshC
 interface UploadModalProps {
   onClose: () => void;
   onUploaded: () => void;
+  /** When set, the uploaded document will be owned by the vault owner (editor upload) */
+  vaultOwnerId?: string;
 }
 
 const formatBytes = (bytes?: number) => {
@@ -27,7 +29,7 @@ const ALLOWED_TYPES = [
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
 
-export function UploadModal({ onClose, onUploaded }: UploadModalProps) {
+export function UploadModal({ onClose, onUploaded, vaultOwnerId }: UploadModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -152,6 +154,10 @@ export function UploadModal({ onClose, onUploaded }: UploadModalProps) {
     if (tags) {
       const tagArray = tags.split(",").map(t => t.trim()).filter(t => t.length > 0);
       tagArray.forEach(tag => data.append("tags", tag));
+    }
+    // Editor uploading to a vault owner's vault
+    if (vaultOwnerId) {
+      data.append("vaultOwnerId", vaultOwnerId);
     }
 
     abortControllerRef.current = new AbortController();

@@ -712,4 +712,82 @@ export const api = {
 
   getRecentSearches: (): Promise<string[]> =>
     request<string[]>("/api/search/recent"),
+
+  // ─── Vault Members ──────────────────────────────────────────────────────────
+
+  // Owner: invite a member
+  inviteVaultMember: (data: { memberEmail: string; role: "viewer" | "editor" }): Promise<{ success: boolean; data: import("./types.js").VaultMember }> =>
+    request<{ success: boolean; data: import("./types.js").VaultMember }>("/api/vault/members", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  // Owner: list members grouped by status
+  listVaultMembers: (): Promise<{ success: boolean; data: import("./types.js").VaultMemberList }> =>
+    request<{ success: boolean; data: import("./types.js").VaultMemberList }>("/api/vault/members"),
+
+  // Owner: change member role
+  changeVaultMemberRole: (memberId: string, role: "viewer" | "editor"): Promise<{ success: boolean; data: import("./types.js").VaultMember }> =>
+    request<{ success: boolean; data: import("./types.js").VaultMember }>(`/api/vault/members/${memberId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    }),
+
+  // Owner: remove a member
+  removeVaultMember: (memberId: string): Promise<null> =>
+    request<null>(`/api/vault/members/${memberId}`, { method: "DELETE" }),
+
+  // Owner: resend pending invite
+  resendVaultInvite: (memberId: string): Promise<{ success: boolean; data: import("./types.js").VaultMember }> =>
+    request<{ success: boolean; data: import("./types.js").VaultMember }>(`/api/vault/members/${memberId}/resend`, { method: "POST" }),
+
+  // Member: get pending invites sent to my email
+  getMyVaultInvites: (): Promise<{ success: boolean; data: import("./types.js").VaultMember[] }> =>
+    request<{ success: boolean; data: import("./types.js").VaultMember[] }>("/api/vault/invites"),
+
+  // Member: accept an invite by token
+  acceptVaultInvite: (token: string): Promise<{ success: boolean; data: import("./types.js").VaultMember }> =>
+    request<{ success: boolean; data: import("./types.js").VaultMember }>(`/api/vault/invites/${token}/accept`, { method: "POST" }),
+
+  // Member: decline an invite by token
+  declineVaultInvite: (token: string): Promise<{ success: boolean; message: string }> =>
+    request<{ success: boolean; message: string }>(`/api/vault/invites/${token}/decline`, { method: "POST" }),
+
+  // Member: leave a vault
+  leaveVault: (vaultOwnerId: string): Promise<null> =>
+    request<null>(`/api/vault/access/${vaultOwnerId}`, { method: "DELETE" }),
+
+  // Member: list all vaults shared with me
+  getSharedVaults: (): Promise<{ success: boolean; data: import("./types.js").VaultMember[] }> =>
+    request<{ success: boolean; data: import("./types.js").VaultMember[] }>("/api/vault/shared-with-me"),
+
+  // Get documents from a specific vault (pass vaultOwnerId as query param)
+  getVaultDocuments: (vaultOwnerId: string, params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    category?: string;
+    sortBy?: string;
+  }): Promise<{
+    documents: import("./types.js").Document[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> => {
+    const q = new URLSearchParams({ vaultOwnerId });
+    if (params?.page)     q.append("page",     params.page.toString());
+    if (params?.limit)    q.append("limit",    params.limit.toString());
+    if (params?.search)   q.append("search",   params.search);
+    if (params?.status)   q.append("status",   params.status);
+    if (params?.category) q.append("category", params.category);
+    if (params?.sortBy)   q.append("sortBy",   params.sortBy);
+    return request<{
+      documents: import("./types.js").Document[];
+      total: number; page: number; limit: number; totalPages: number;
+    }>(`/api/documents?${q.toString()}`);
+  },
 };

@@ -33,7 +33,8 @@ import {
 } from "./document.validation.js";
 
 /**
- * Upload document
+ * Upload document — owner uploads to their own vault,
+ * or an editor uploads to a vault they have editor access to.
  */
 export const uploadDocument = async (
   req: Request,
@@ -52,6 +53,26 @@ export const uploadDocument = async (
       return next(new ApiError(401, "UNAUTHORIZED", "User not authenticated"));
     }
 
+    // Editor uploading to someone else's vault
+    const vaultOwnerId = req.body.vaultOwnerId as string | undefined;
+    let effectiveOwnerId = userId;
+    let effectiveOwnerName = (req as any).user?.name || "Unknown";
+    let effectiveOwnerEmail = (req as any).user?.email || "";
+
+    if (vaultOwnerId && vaultOwnerId !== userId) {
+      const { assertVaultAccess } = await import("../vault/vault.service.js");
+      const membership = await assertVaultAccess(vaultOwnerId, userId);
+      if (membership.role !== "editor") {
+        return next(new ApiError(403, "VIEWER_CANNOT_UPLOAD", "Viewers cannot upload documents"));
+      }
+      // Document owner becomes the vault owner
+      const { User } = await import("../users/user.model.js");
+      const owner = await User.findById(vaultOwnerId).select("name email");
+      effectiveOwnerId = vaultOwnerId;
+      effectiveOwnerName = owner?.name ?? "Unknown";
+      effectiveOwnerEmail = owner?.email ?? "";
+    }
+
     const document = await uploadDocumentService({
       file: req.file.buffer,
       originalName: req.file.originalname,
@@ -61,9 +82,9 @@ export const uploadDocument = async (
       description,
       category,
       tags,
-      ownerId: userId,
-      ownerName: (req as any).user?.name || "Unknown",
-      ownerEmail: (req as any).user?.email || "",
+      ownerId: effectiveOwnerId,
+      ownerName: effectiveOwnerName,
+      ownerEmail: effectiveOwnerEmail,
     });
 
     res.status(201).json({ data: document });
@@ -73,7 +94,8 @@ export const uploadDocument = async (
 };
 
 /**
- * Get documents with pagination, filtering, and sorting
+ * List documents — owner's own docs, or a vault member viewing a shared vault.
+ * Vault access: GET /api/documents?vaultOwnerId=:id
  */
 export const listDocuments = async (
   req: Request,
@@ -86,11 +108,41 @@ export const listDocuments = async (
       return next(new ApiError(401, "UNAUTHORIZED", "User not authenticated"));
     }
 
-    // Convert "all" to undefined for status filter to support frontend "All" option
-    const queryToParse = { ...req.query };
-    if (queryToParse.status === "all") {
-      delete queryToParse.status;
+    // ── Vault member path ────────────────────────────────────────────────────
+    const vaultOwnerId = req.query.vaultOwnerId as string | undefined;
+    if (vaultOwnerId && vaultOwnerId !== userId) {
+      // Dynamically import to avoid circular deps
+      const { assertVaultAccess } = await import("../vault/vault.service.js");
+      await assertVaultAccess(vaultOwnerId, userId); // throws 403 if not active member
+
+      const queryToParse = { ...req.query };
+      if (queryToParse.status === "all") delete queryToParse.status;
+      delete queryToParse.vaultOwnerId;
+
+      const { page, limit, search, status, category, isFavorite, isArchived, sortBy, startDate, endDate } =
+        getDocumentsSchema.parse(queryToParse);
+
+      const result = await getDocuments({
+        page,
+        limit,
+        search,
+        status,
+        category,
+        isFavorite,
+        isArchived,
+        sortBy,
+        startDate,
+        endDate,
+        ownerId: vaultOwnerId, // fetch owner's documents
+      });
+
+      res.json(result);
+      return;
     }
+
+    // ── Normal owner path ────────────────────────────────────────────────────
+    const queryToParse = { ...req.query };
+    if (queryToParse.status === "all") delete queryToParse.status;
 
     const { page, limit, search, status, category, isFavorite, isArchived, sortBy, startDate, endDate, owner } =
       getDocumentsSchema.parse(queryToParse);

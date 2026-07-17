@@ -12,8 +12,9 @@ import Dashboard from "./pages/Dashboard.js";
 import Documents from "./pages/Documents.js";
 import DocumentDetail from "./pages/DocumentDetail.js";
 import Verifications from "./pages/Verifications.js";
-import SharedVaults from "./pages/SharedVaults.js";
-import TeamMembers from "./pages/TeamMembers.js";
+import SharedVaults from "./pages/SharedVaults.js";          // UPDATED
+import VaultMembers from "./pages/VaultMembers.js";           // UPDATED
+import SharedVaultDocuments from "./pages/SharedVaultDocuments.js"; // UPDATED
 import Settings from "./pages/Settings.js";
 
 // Protected Route Component
@@ -88,6 +89,14 @@ export default function App() {
           />
           <Route
             path="/shared-vaults"
+            element={<Navigate to="/vault/shared" replace />}
+          />
+          <Route
+            path="/team-members"
+            element={<Navigate to="/vault/members" replace />}
+          />
+          <Route
+            path="/vault/shared"
             element={
               <ProtectedRoute>
                 <SharedVaults />
@@ -95,10 +104,18 @@ export default function App() {
             }
           />
           <Route
-            path="/team-members"
+            path="/vault/shared/:ownerId/documents"
             element={
               <ProtectedRoute>
-                <TeamMembers />
+                <SharedVaultDocuments />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/vault/members"
+            element={
+              <ProtectedRoute>
+                <VaultMembers />
               </ProtectedRoute>
             }
           />
