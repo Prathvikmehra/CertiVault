@@ -23,7 +23,7 @@ RUN npm ci
 # Copy the rest of the frontend source
 COPY frontend/ .
 
-# Build the React app (tsc type-check + vite bundle → dist/)
+# Build the React app (tsc type-check + vite bundle -> dist/)
 RUN npm run build
 
 # ─── Stage 2: Production (Nginx) ──────────────────────────────────────────────

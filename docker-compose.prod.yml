@@ -1,125 +1,205 @@
 # =============================================================================
-# CertiVault — docker-compose.prod.yml  (production overrides)
+# CertiVault — docker-compose.prod.yml (production deployment)
 # =============================================================================
-# This file extends docker-compose.yml with production-specific settings.
-# Always use BOTH files together:
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
 #
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-#
-# Key differences from dev compose:
-#   - Images pulled from GHCR instead of built locally
-#   - No bind-mounted source code
-#   - Explicit image tags (set via IMAGE_TAG env var, default: latest)
-#   - Resource limits enforced
-#   - Grafana admin password from env var (not hardcoded "admin")
-#   - Redis password enabled
-#   - No dev ports exposed for MongoDB / Redis (only accessible inside network)
+# Differences from dev:
+#   • No exposed ports for monitoring/DBs (access via proxy or SSH tunnel)
+#   • Restart policies: always (vs unless-stopped)
+#   • Memory/CPU limits defined
+#   • Log drivers configured for prod logging
+#   • Replica count for backend (set via override or swarm)
 # =============================================================================
 
-name: certivault
+name: certivault-prod
 
 services:
 
-  # ── MongoDB (production — no external port) ───────────────────────────────
+  # ── MongoDB ──────────────────────────────────────────────────────────────────
   mongodb:
     image: mongo:7
-    ports: []           # do NOT expose MongoDB to host in production
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-certivault}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?MONGO_ROOT_PASSWORD is required}
-      MONGO_INITDB_DATABASE: certivault
+    container_name: certivault-mongodb
+    restart: always
     deploy:
       resources:
         limits:
-          cpus: "1.0"
+          cpus: '1'
           memory: 1G
         reservations:
-          cpus: "0.25"
-          memory: 256M
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      MONGO_INITDB_DATABASE: certivault
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - certivault-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # ── Redis (production — password-protected, no external port) ─────────────
+  # ── Redis ────────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    ports: []           # do NOT expose Redis to host in production
-    command: >
-      redis-server
-      --appendonly yes
-      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    container_name: certivault-redis
+    restart: always
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 256M
-        reservations:
-          cpus: "0.1"
-          memory: 64M
-
-  # ── Backend API (pull from GHCR) ──────────────────────────────────────────
-  backend:
-    # Built and pushed by the docker-build.yml GitHub Actions workflow
-    image: ghcr.io/krishnx21/certivault-backend:${IMAGE_TAG:-latest}
-    build: !reset null        # disable local build in prod
-    environment:
-      MONGO_URI: mongodb://${MONGO_ROOT_USER:-certivault}:${MONGO_ROOT_PASSWORD}@mongodb:27017/certivault?authSource=admin
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
-      NODE_ENV: production
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          cpus: "0.5"
+          cpus: '1'
           memory: 512M
         reservations:
-          cpus: "0.1"
-          memory: 128M
-      restart_policy:
-        condition: on-failure
-        max_attempts: 5
-        delay: 10s
+          cpus: '0.25'
+          memory: 256M
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - certivault-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # ── Workers (pull from GHCR — same image as backend) ─────────────────────
-  workers:
-    image: ghcr.io/krishnx21/certivault-backend:${IMAGE_TAG:-latest}
-    build: !reset null
-    environment:
-      MONGO_URI: mongodb://${MONGO_ROOT_USER:-certivault}:${MONGO_ROOT_PASSWORD}@mongodb:27017/certivault?authSource=admin
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
-      NODE_ENV: production
+  # ── Backend API ──────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: certivault-backend
+    restart: always
     deploy:
-      replicas: 1
       resources:
         limits:
-          cpus: "0.25"
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+    env_file:
+      - ./backend/.env
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/certivault
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/health/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - certivault-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ── BullMQ Workers ───────────────────────────────────────────────────────────
+  workers:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: certivault-workers
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+    command: ["node", "dist/workers/index.js"]
+    env_file:
+      - ./backend/.env
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/certivault
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - certivault-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ── Frontend (Nginx + React SPA) ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: production
+    container_name: certivault-frontend
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
           memory: 256M
         reservations:
-          cpus: "0.1"
+          cpus: '0.5'
           memory: 128M
-      restart_policy:
-        condition: on-failure
-        max_attempts: 5
-        delay: 10s
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - certivault-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # ── Frontend (pull from GHCR) ─────────────────────────────────────────────
-  frontend:
-    image: ghcr.io/krishnx21/certivault-frontend:${IMAGE_TAG:-latest}
-    build: !reset null   # disable local build in prod — image pulled from GHCR
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          cpus: "0.2"
-          memory: 128M
-        reservations:
-          cpus: "0.05"
-          memory: 64M
-      restart_policy:
-        condition: on-failure
-        max_attempts: 5
-        delay: 10s
-
-  # ── Prometheus (production retention + resource limits) ────────────────────
+  # ── Prometheus ───────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.53.0
+    container_name: certivault-prometheus
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus-rules.yml:/etc/prometheus/rules/certivault-rules.yml:ro
+      - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -127,31 +207,67 @@ services:
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
       - "--web.enable-lifecycle"
-    ports: []           # do NOT expose Prometheus to host in production
+    depends_on:
+      - backend
+    networks:
+      - certivault-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Grafana ───────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: certivault-grafana
+    restart: always
     deploy:
       resources:
         limits:
-          cpus: "0.5"
+          cpus: '1'
           memory: 512M
         reservations:
-          cpus: "0.1"
-          memory: 128M
-
-  # ── Grafana (secure admin password from env) ──────────────────────────────
-  grafana:
-    image: grafana/grafana:11.1.0
+          cpus: '0.5'
+          memory: 256M
     environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
-      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001}
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 256M
-        reservations:
-          cpus: "0.1"
-          memory: 128M
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - certivault-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# =============================================================================
+# Named Volumes
+# =============================================================================
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+  uploads_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  certivault-net:
+    driver: bridge

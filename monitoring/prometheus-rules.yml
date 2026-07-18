@@ -190,5 +190,5 @@ groups:
         annotations:
           summary: "Node.js event loop is lagging"
           description: >
-            Event loop lag: {{ printf "%.0f" ($value | multiply 1000) }}ms.
+            Event loop lag: {{ printf "%.0f" $value }}s.
             This indicates the event loop is blocked by CPU-intensive work.

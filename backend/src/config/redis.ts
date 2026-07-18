@@ -38,6 +38,16 @@ const sharedOptions: Partial<RedisOptions> = {
   reconnectOnError,
 };
 
+// BullMQ requires maxRetriesPerRequest: null on every connection it manages.
+// We create a fresh client each time so Queue and Worker get independent connections.
+const bullmqOptions: Partial<RedisOptions> = {
+  lazyConnect: false,
+  enableReadyCheck: false,
+  maxRetriesPerRequest: null,
+  retryStrategy,
+  reconnectOnError,
+};
+
 // ─── Create the singleton client ─────────────────────────────────────────────
 
 function createRedisClient(): Redis {
@@ -84,6 +94,28 @@ function createRedisClient(): Redis {
 // ─── Singleton instance ───────────────────────────────────────────────────────
 
 export const redis = createRedisClient();
+
+// ─── BullMQ connection factory ────────────────────────────────────────────────
+// BullMQ requires maxRetriesPerRequest: null. Call this once per Queue/Worker
+// so each gets its own dedicated connection (BullMQ manages the lifecycle).
+
+export function createBullMQConnection(): Redis {
+  const env = getEnv();
+
+  const client: Redis = env.REDIS_URL
+    ? new Redis(env.REDIS_URL, bullmqOptions)
+    : new Redis({
+        host: env.REDIS_HOST ?? "127.0.0.1",
+        port: env.REDIS_PORT ? parseInt(env.REDIS_PORT, 10) : 6379,
+        ...bullmqOptions,
+      });
+
+  client.on("error", (err: Error) => {
+    log.error("Redis (BullMQ): client error", { error: err.message });
+  });
+
+  return client;
+}
 
 // ─── Health check helper ──────────────────────────────────────────────────────
 

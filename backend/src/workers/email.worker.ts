@@ -6,7 +6,7 @@
 
 import { Worker, Job } from "bullmq";
 import { Resend } from "resend";
-import { redis } from "../config/redis.js";
+import { createBullMQConnection } from "../config/redis.js";
 import { EMAIL_QUEUE_NAME } from "../queues/email.queue.js";
 import type { EmailJobData } from "../queues/email.queue.js";
 import { getEnv } from "../config/env.js";
@@ -352,7 +352,7 @@ export function startEmailWorker(): Worker<EmailJobData> {
     EMAIL_QUEUE_NAME,
     processEmailJob,
     {
-      connection: redis,
+      connection: createBullMQConnection(),
       concurrency: 5,
       // Automatically extend the job lock while processing
       lockDuration: 30_000,

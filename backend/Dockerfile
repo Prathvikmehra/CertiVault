@@ -24,7 +24,7 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
 
-# Compile TypeScript → dist/
+# Compile TypeScript -> dist/
 RUN npm run build
 
 # ─── Stage 2: Production ──────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ USER certivault
 # Expose API port
 EXPOSE 5000
 
-# Health check — Docker will mark the container unhealthy if this fails
+# Health check - Docker will mark the container unhealthy if this fails
 # Uses wget (available in alpine) to hit the liveness probe
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD wget -qO- http://localhost:5000/health/live || exit 1

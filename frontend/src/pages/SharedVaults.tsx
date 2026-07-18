@@ -111,9 +111,6 @@ function VaultCard({ membership, onOpen, onLeave }: {
   onLeave: (m: VaultMember) => void;
 }) {
   const owner = getOwner(membership);
-  const ownerId = typeof membership.vaultOwnerId === "string"
-    ? membership.vaultOwnerId
-    : (membership.vaultOwnerId as VaultMemberUser)._id;
 
   return (
     <div

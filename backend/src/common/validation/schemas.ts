@@ -124,8 +124,8 @@ export const uploadDocumentSchema = z.object({
  */
 export const documentQuerySchema = z.object({
   query: z.object({
-    page: z.string().regex(/^\d+$/).transform(Number).pipe(z.number().min(1).default(1)).optional(),
-    limit: z.string().regex(/^\d+$/).transform(Number).pipe(z.number().min(1).max(100).default(20)).optional(),
+    page: z.coerce.number().min(1).default(1).optional(),
+    limit: z.coerce.number().min(1).max(100).default(20).optional(),
     search: z.string().max(100).trim().optional(),
     category: z.string().max(50).optional(),
     tags: z.string().max(200).optional().transform(tags => tags?.split(",").map(t => t.trim().toLowerCase()).filter(Boolean)),

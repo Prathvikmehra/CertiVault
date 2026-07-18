@@ -141,6 +141,7 @@ export const optionalAuth = async (
       req.user = {
         userId: decoded.userId,
         email: decoded.email,
+        name: decoded.name ?? "",
         role: decoded.role,
       };
     }

@@ -5,7 +5,7 @@
  */
 
 import { Worker, Job } from "bullmq";
-import { redis } from "../config/redis.js";
+import { createBullMQConnection } from "../config/redis.js";
 import { NOTIFICATION_QUEUE_NAME } from "../queues/notification.queue.js";
 import type { NotificationJobData } from "../queues/notification.queue.js";
 import { createModuleLogger } from "../common/utils/logger.js";
@@ -207,7 +207,7 @@ export function startNotificationWorker(): Worker<NotificationJobData> {
     NOTIFICATION_QUEUE_NAME,
     processNotificationJob,
     {
-      connection: redis,
+      connection: createBullMQConnection(),
       concurrency: 10,
       lockDuration: 15_000,
     }

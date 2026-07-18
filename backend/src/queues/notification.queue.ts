@@ -4,7 +4,7 @@
  */
 
 import { Queue } from "bullmq";
-import { redis } from "../config/redis.js";
+import { createBullMQConnection } from "../config/redis.js";
 import { createModuleLogger } from "../common/utils/logger.js";
 
 const log = createModuleLogger("notification-queue");
@@ -64,7 +64,7 @@ export const NOTIFICATION_QUEUE_NAME = "notification";
 export const notificationQueue = new Queue<NotificationJobData>(
   NOTIFICATION_QUEUE_NAME,
   {
-    connection: redis,
+    connection: createBullMQConnection(),
     defaultJobOptions: {
       attempts: 3,
       backoff: {

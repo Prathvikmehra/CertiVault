@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  UserPlus, Users, Clock, CheckCircle2, AlertCircle,
+  UserPlus, Users, CheckCircle2, AlertCircle,
   Trash2, RefreshCw, ChevronDown, Shield, Eye,
 } from "lucide-react";
 import { Sidebar } from "../components/Sidebar.js";

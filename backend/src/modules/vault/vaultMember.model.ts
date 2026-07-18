@@ -102,9 +102,6 @@ vaultMemberSchema.index(
   { unique: true }
 );
 
-// Fast lookup by token (used in accept/decline flows)
-vaultMemberSchema.index({ inviteToken: 1 }, { unique: true });
-
 // Fast lookup for "vaults I'm a member of"
 vaultMemberSchema.index({ memberUserId: 1, status: 1 });
 

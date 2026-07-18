@@ -4,7 +4,7 @@
  */
 
 import { Queue } from "bullmq";
-import { redis } from "../config/redis.js";
+import { createBullMQConnection } from "../config/redis.js";
 import { createModuleLogger } from "../common/utils/logger.js";
 
 const log = createModuleLogger("email-queue");
@@ -79,7 +79,7 @@ export type EmailJobData =
 export const EMAIL_QUEUE_NAME = "email";
 
 export const emailQueue = new Queue<EmailJobData>(EMAIL_QUEUE_NAME, {
-  connection: redis,
+  connection: createBullMQConnection(),
   defaultJobOptions: {
     attempts: 3,
     backoff: {
