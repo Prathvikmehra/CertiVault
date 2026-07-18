@@ -23,8 +23,8 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
-      - name: Run Node coverage
-        run: node --test --experimental-test-coverage
+      - name: Run unit tests with coverage
+        run: npm run test:coverage
       - name: Upload coverage when lcov exists
         if: hashFiles('backend/coverage/lcov.info') != ''
         uses: codecov/codecov-action@v4
