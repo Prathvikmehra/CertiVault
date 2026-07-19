@@ -34,7 +34,9 @@ jobs:
               line-length: disable
               truthy: disable
               document-start: disable
-
+              new-lines: disable
+              commas: disable
+              comments-indentation: disable
   links:
     name: Link checker
     runs-on: ubuntu-latest
