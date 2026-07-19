@@ -2,10 +2,10 @@
 # CertiVault — Container Image Security Scanning (Trivy)
 # =============================================================================
 # Scans built Docker images for OS + npm vulnerabilities and secrets.
-# Results are always uploaded to the GitHub Security tab as SARIF.
+# Results are uploaded to the GitHub Security tab as SARIF when available.
 #
-# The workflow itself never hard-fails the pipeline — findings are visible
-# in the Security tab and as step annotations, but won't block deploys.
+# The workflow never hard-fails the pipeline — findings are visible in the
+# Security tab and as step annotations, but won't block deploys.
 # Use GitHub branch protection rules to enforce security gates if needed.
 # =============================================================================
 
@@ -48,6 +48,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build backend image for scanning
+        id: build_backend
         uses: docker/build-push-action@v6
         continue-on-error: true
         with:
@@ -63,6 +64,7 @@ jobs:
       # ── OS + npm packages inside the image ─────────────────────────────────
       - name: Trivy — image vuln scan (backend)
         id: image_scan
+        if: steps.build_backend.outcome == 'success'
         uses: aquasecurity/trivy-action@v0.36.0
         continue-on-error: true
         with:
@@ -76,8 +78,8 @@ jobs:
           ignore-unfixed: true    # skip CVEs that have no available fix
 
       - name: Upload backend image scan results
+        if: steps.image_scan.outcome == 'success' && hashFiles('trivy-backend-image.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
         with:
           sarif_file: trivy-backend-image.sarif
           category: container-backend
@@ -99,8 +101,8 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload backend dependency scan results
+        if: steps.deps_scan.outcome == 'success' && hashFiles('trivy-backend-deps.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
         with:
           sarif_file: trivy-backend-deps.sarif
           category: deps-backend
@@ -117,6 +119,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build frontend image for scanning
+        id: build_frontend
         uses: docker/build-push-action@v6
         continue-on-error: true
         with:
@@ -132,6 +135,7 @@ jobs:
       # ── OS + npm packages inside the image ─────────────────────────────────
       - name: Trivy — image vuln scan (frontend)
         id: image_scan
+        if: steps.build_frontend.outcome == 'success'
         uses: aquasecurity/trivy-action@v0.36.0
         continue-on-error: true
         with:
@@ -145,8 +149,8 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload frontend image scan results
+        if: steps.image_scan.outcome == 'success' && hashFiles('trivy-frontend-image.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
         with:
           sarif_file: trivy-frontend-image.sarif
           category: container-frontend
@@ -168,8 +172,8 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload frontend dependency scan results
+        if: steps.deps_scan.outcome == 'success' && hashFiles('trivy-frontend-deps.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
         with:
           sarif_file: trivy-frontend-deps.sarif
           category: deps-frontend
