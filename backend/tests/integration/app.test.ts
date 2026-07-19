@@ -68,7 +68,7 @@ test("GET /health/ready reports readiness", async () => {
   assert.equal(body.status, "ready");
   assert.equal(typeof body.version, "string");
   assert.ok(body.version.length > 0);
-  assert.deepEqual(body.checks, {});
+  assert.deepEqual(body.checks, { mongo: "healthy", redis: "disabled" });
 });
 
 test("unknown routes return a normalized error", async () => {

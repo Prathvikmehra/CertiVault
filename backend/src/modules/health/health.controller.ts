@@ -28,7 +28,9 @@ export const getReadiness = async (_req: Request, res: Response): Promise<void> 
 
   const redisStatus = await checkRedisHealth();
 
-  const allHealthy = mongoStatus === "healthy" && redisStatus === "healthy";
+  const allHealthy =
+    mongoStatus === "healthy" &&
+    (redisStatus === "healthy" || redisStatus === "disabled");
 
   res.status(allHealthy ? 200 : 503).json({
     status: allHealthy ? "ready" : "degraded",

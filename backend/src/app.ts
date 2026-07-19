@@ -194,6 +194,17 @@ export const createApp = (): Express => {
   // ============================================
   // API ROUTES
   // ============================================
+  app.get("/", (_req, res) => {
+    res.status(200).json({
+      status: "success",
+      message: "CertiVault API is running",
+    });
+  });
+  // Express 5 no longer auto-handles HEAD for app.get() routes,
+  // so Render's uptime probe (which sends HEAD /) would 404 without this.
+  app.head("/", (_req, res) => {
+    res.status(200).end();
+  });
   app.use("/health", healthRouter);
   app.use("/api", infoRouter);
 

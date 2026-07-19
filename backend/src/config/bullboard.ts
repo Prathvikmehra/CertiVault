@@ -71,9 +71,9 @@ export function createBullBoardRouter(): {
   createBullBoard({ queues, serverAdapter });
 
   if (queues.length > 0) {
-    log.info(`Bull Board: initialised (${queues.length} queue(s) registered)`);
+    log.info(`Bull Board: initialised (email, notification queues registered)`);
   } else {
-    log.warn("Bull Board: initialised with no queues (Redis not configured)");
+    log.warn("Bull Board: initialised with no queues (Redis not configured — queues are disabled)");
   }
 
   return {
