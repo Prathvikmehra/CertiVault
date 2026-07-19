@@ -97,19 +97,31 @@ jobs:
       # Backend config is fully defined in backend.tf — no -backend-config
       # overrides needed. Passing empty secrets as -backend-config args would
       # cause "bucket must not be empty" errors.
+      # If the S3 backend bucket does not exist yet, init will fail — we catch
+      # that and skip the rest of the job gracefully.
       - name: Terraform Init
+        id: init
         if: steps.check-creds.outputs.skip != 'true'
         run: terraform init -reconfigure
+        continue-on-error: true
+
+      - name: Skip if backend unavailable
+        if: steps.check-creds.outputs.skip != 'true' && steps.init.outcome != 'success'
+        run: |
+          echo "⚠️  terraform init failed — S3 backend may not exist yet." >> $GITHUB_STEP_SUMMARY
+          echo "   Create the state bucket and DynamoDB table (see backend.tf)" >> $GITHUB_STEP_SUMMARY
+          echo "   then re-run this workflow." >> $GITHUB_STEP_SUMMARY
+          echo "backend_ready=false" >> $GITHUB_ENV
 
       # ── Validate before applying ────────────────────────────────────────────
       - name: Terraform Validate
-        if: steps.check-creds.outputs.skip != 'true'
+        if: steps.check-creds.outputs.skip != 'true' && steps.init.outcome == 'success'
         run: terraform validate -no-color
 
       # ── Plan (fresh plan — never apply a stale one) ─────────────────────────
       - name: Terraform Plan
         id: plan
-        if: steps.check-creds.outputs.skip != 'true'
+        if: steps.check-creds.outputs.skip != 'true' && steps.init.outcome == 'success'
         run: |
           set -o pipefail
           terraform plan \
@@ -121,7 +133,7 @@ jobs:
 
       # ── Show what will change ───────────────────────────────────────────────
       - name: Show plan summary
-        if: steps.check-creds.outputs.skip != 'true'
+        if: steps.check-creds.outputs.skip != 'true' && steps.init.outcome == 'success'
         run: |
           echo "### Terraform Plan Summary" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
@@ -131,7 +143,7 @@ jobs:
       # ── Apply ───────────────────────────────────────────────────────────────
       - name: Terraform Apply
         id: apply
-        if: steps.check-creds.outputs.skip != 'true'
+        if: steps.check-creds.outputs.skip != 'true' && steps.init.outcome == 'success'
         run: |
           set -o pipefail
           terraform apply \
