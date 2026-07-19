@@ -22,7 +22,7 @@ locals {
 # ── Bucket ────────────────────────────────────────────────────────────────────
 resource "aws_s3_bucket" "documents" {
   bucket        = local.bucket_name
-  force_destroy = false   # never wipe documents on terraform destroy
+  force_destroy = false # never wipe documents on terraform destroy
 
   tags = { Name = local.bucket_name, Purpose = "document-storage" }
 }
@@ -79,11 +79,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "documents" {
     id     = "archive-old-documents"
     status = "Enabled"
 
-    filter { prefix = "" }   # applies to all objects
+    filter { prefix = "" } # applies to all objects
 
     transition {
       days          = var.glacier_transition_days
-      storage_class = "GLACIER_IR"   # Glacier Instant Retrieval (ms access)
+      storage_class = "GLACIER_IR" # Glacier Instant Retrieval (ms access)
     }
 
     # Expire non-current versions after 30 days to control storage costs
@@ -127,10 +127,10 @@ resource "aws_s3_bucket_policy" "documents" {
       },
       # Deny all non-HTTPS traffic
       {
-        Sid    = "DenyHTTP"
-        Effect = "Deny"
+        Sid       = "DenyHTTP"
+        Effect    = "Deny"
         Principal = "*"
-        Action   = "s3:*"
+        Action    = "s3:*"
         Resource = [
           aws_s3_bucket.documents.arn,
           "${aws_s3_bucket.documents.arn}/*"

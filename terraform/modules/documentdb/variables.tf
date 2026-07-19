@@ -63,7 +63,7 @@ variable "master_username" {
 }
 
 variable "database_name" {
-  description = "Initial database name to create inside the cluster"
+  description = "Default database name used in the application connection URI"
   type        = string
   default     = "certivault"
 }

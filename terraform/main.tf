@@ -19,11 +19,11 @@ module "vpc" {
 module "s3" {
   source = "./modules/s3"
 
-  project_name                = var.project_name
-  environment                 = var.environment
-  glacier_transition_days     = var.s3_glacier_transition_days
-  frontend_domain             = var.frontend_domain
-  eks_node_role_arn           = module.eks.node_role_arn
+  project_name            = var.project_name
+  environment             = var.environment
+  glacier_transition_days = var.s3_glacier_transition_days
+  frontend_domain         = var.frontend_domain
+  eks_node_role_arn       = module.eks.node_role_arn
 }
 
 # ── ECR Repositories ──────────────────────────────────────────────────────────
@@ -38,13 +38,13 @@ module "ecr" {
 module "elasticache" {
   source = "./modules/elasticache"
 
-  project_name         = var.project_name
-  environment          = var.environment
-  node_type            = var.redis_node_type
-  engine_version       = var.redis_engine_version
-  num_cache_nodes      = var.redis_num_cache_nodes
-  subnet_ids           = module.vpc.private_subnet_ids
-  vpc_id               = module.vpc.vpc_id
+  project_name            = var.project_name
+  environment             = var.environment
+  node_type               = var.redis_node_type
+  engine_version          = var.redis_engine_version
+  num_cache_nodes         = var.redis_num_cache_nodes
+  subnet_ids              = module.vpc.private_subnet_ids
+  vpc_id                  = module.vpc.vpc_id
   allowed_security_groups = [module.eks.node_security_group_id]
 }
 
@@ -70,14 +70,14 @@ module "documentdb" {
 module "eks" {
   source = "./modules/eks"
 
-  project_name        = var.project_name
-  environment         = var.environment
-  cluster_version     = var.eks_cluster_version
-  node_instance_type  = var.node_instance_type
-  min_nodes           = var.min_nodes
-  max_nodes           = var.max_nodes
-  desired_nodes       = var.desired_nodes
-  node_disk_size      = var.node_disk_size
-  private_subnet_ids  = module.vpc.private_subnet_ids
-  vpc_id              = module.vpc.vpc_id
+  project_name       = var.project_name
+  environment        = var.environment
+  cluster_version    = var.eks_cluster_version
+  node_instance_type = var.node_instance_type
+  min_nodes          = var.min_nodes
+  max_nodes          = var.max_nodes
+  desired_nodes      = var.desired_nodes
+  node_disk_size     = var.node_disk_size
+  private_subnet_ids = module.vpc.private_subnet_ids
+  vpc_id             = module.vpc.vpc_id
 }

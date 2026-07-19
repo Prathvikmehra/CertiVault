@@ -92,9 +92,9 @@ resource "aws_eks_cluster" "main" {
 
   vpc_config {
     subnet_ids              = var.private_subnet_ids
-    endpoint_public_access  = true    # kubectl access from developer machines
-    endpoint_private_access = true    # nodes communicate via private endpoint
-    public_access_cidrs     = ["0.0.0.0/0"]   # restrict to your IP in production
+    endpoint_public_access  = true          # kubectl access from developer machines
+    endpoint_private_access = true          # nodes communicate via private endpoint
+    public_access_cidrs     = ["0.0.0.0/0"] # restrict to your IP in production
   }
 
   # Enable control plane logging
@@ -126,12 +126,12 @@ resource "aws_eks_node_group" "main" {
   }
 
   update_config {
-    max_unavailable = 1   # rolling update: take down 1 node at a time
+    max_unavailable = 1 # rolling update: take down 1 node at a time
   }
 
   # Auto-apply AMI security patches
-  ami_type       = "AL2_x86_64"   # Amazon Linux 2 — switch to AL2023 when ready
-  release_version = null          # null = always use the latest recommended
+  ami_type        = "AL2_x86_64" # Amazon Linux 2 — switch to AL2023 when ready
+  release_version = null         # null = always use the latest recommended
 
   tags = { Name = "${local.name}-nodes" }
 
@@ -143,7 +143,7 @@ resource "aws_eks_node_group" "main" {
   ]
 
   lifecycle {
-    ignore_changes = [scaling_config[0].desired_size]   # let cluster autoscaler manage this
+    ignore_changes = [scaling_config[0].desired_size] # let cluster autoscaler manage this
   }
 }
 

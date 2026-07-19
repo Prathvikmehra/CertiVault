@@ -23,11 +23,11 @@ resource "aws_ecr_repository" "repos" {
   for_each = local.repos
 
   name                 = each.value
-  image_tag_mutability = "MUTABLE"   # allow re-tagging :latest
+  image_tag_mutability = "MUTABLE" # allow re-tagging :latest
   force_delete         = false
 
   image_scanning_configuration {
-    scan_on_push = true   # automatically scan every pushed image
+    scan_on_push = true # automatically scan every pushed image
   }
 
   encryption_configuration {

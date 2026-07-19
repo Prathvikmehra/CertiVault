@@ -33,7 +33,7 @@ data "aws_caller_identity" "current" {}
 resource "random_password" "docdb_master" {
   length           = 32
   special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"  # characters safe in connection strings
+  override_special = "!#$%&*()-_=+[]{}<>:?" # characters safe in connection strings
 }
 
 resource "aws_secretsmanager_secret" "docdb_master" {
@@ -135,11 +135,10 @@ resource "aws_docdb_cluster" "main" {
   vpc_security_group_ids          = [aws_security_group.docdb.id]
   db_cluster_parameter_group_name = aws_docdb_cluster_parameter_group.main.name
   port                            = 27017
-  database_name                   = var.database_name
 
   # Backups: keep 7 days, run at low-traffic window
-  backup_retention_period   = var.backup_retention_days
-  preferred_backup_window   = "02:00-03:00"
+  backup_retention_period      = var.backup_retention_days
+  preferred_backup_window      = "02:00-03:00"
   preferred_maintenance_window = "sun:04:00-sun:05:00"
 
   # Storage encryption at rest

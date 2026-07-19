@@ -15,15 +15,15 @@ data "aws_availability_zones" "available" {
 }
 
 locals {
-  name   = "${var.project_name}-${var.environment}"
-  azs    = slice(data.aws_availability_zones.available.names, 0, 2)
+  name = "${var.project_name}-${var.environment}"
+  azs  = slice(data.aws_availability_zones.available.names, 0, 2)
 }
 
 # ── VPC ───────────────────────────────────────────────────────────────────────
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
-  enable_dns_hostnames = true   # required for EKS
+  enable_dns_hostnames = true # required for EKS
 
   tags = { Name = "${local.name}-vpc" }
 }
@@ -57,7 +57,7 @@ resource "aws_subnet" "private" {
   tags = {
     Name = "${local.name}-private-${local.azs[count.index]}"
     # EKS uses these tags to discover subnets for internal load balancers
-    "kubernetes.io/role/internal-elb"                    = "1"
+    "kubernetes.io/role/internal-elb"                              = "1"
     "kubernetes.io/cluster/${var.project_name}-${var.environment}" = "shared"
   }
 }
