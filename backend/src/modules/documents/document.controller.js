@@ -32,6 +32,12 @@ export const uploadDocument = (req, res, next) => {
   res.status(201).json({ data: documentStore.add(document) });
 };
 
+export const getDocument = (req, res, next) => {
+  const document = documentStore.find(req.params.id);
+  if (!document) return next(new ApiError(404, "DOCUMENT_NOT_FOUND", "Document was not found"));
+  res.json({ data: document });
+};
+
 export const verifyDocument = (req, res, next) => {
   const document = documentStore.find(req.params.id);
   if (!document) return next(new ApiError(404, "DOCUMENT_NOT_FOUND", "Document was not found"));
